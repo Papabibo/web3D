@@ -61,6 +61,12 @@
             isDragging = false;
         });
 
+        renderer.domElement.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? 0.1 : -0.1;
+            camera.position.z += delta;
+        });
+
         function animate() {
             requestAnimationFrame(animate);
             renderer.render(scene, camera);
