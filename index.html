@@ -24,6 +24,9 @@
         renderer.setClearColor(0x000000);
         document.body.appendChild(renderer.domElement);
 
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+
         const geometry = new THREE.BoxGeometry();
         const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
         const cube = new THREE.Mesh(geometry, material);
@@ -36,10 +39,30 @@
 
         camera.position.z = 5;
 
+        renderer.domElement.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            previousMousePosition = { x: e.clientX, y: e.clientY };
+        });
+
+        renderer.domElement.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const deltaX = e.clientX - previousMousePosition.x;
+            const deltaY = e.clientY - previousMousePosition.y;
+            cube.rotation.y += deltaX * 0.01;
+            cube.rotation.x += deltaY * 0.01;
+            previousMousePosition = { x: e.clientX, y: e.clientY };
+        });
+
+        renderer.domElement.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        renderer.domElement.addEventListener('mouseleave', () => {
+            isDragging = false;
+        });
+
         function animate() {
             requestAnimationFrame(animate);
-            cube.rotation.x += 0.01;
-            cube.rotation.y += 0.01;
             renderer.render(scene, camera);
         }
 
