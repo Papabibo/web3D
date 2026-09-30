@@ -156,8 +156,10 @@
         }
 
         renderer.domElement.addEventListener('mousedown', (e) => {
-            isDragging = true;
-            previousMousePosition = { x: e.clientX, y: e.clientY };
+            if (e.button === 2) {
+                isDragging = true;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            }
         });
 
         renderer.domElement.addEventListener('mousemove', (e) => {
@@ -169,12 +171,18 @@
             previousMousePosition = { x: e.clientX, y: e.clientY };
         });
 
-        renderer.domElement.addEventListener('mouseup', () => {
-            isDragging = false;
+        renderer.domElement.addEventListener('mouseup', (e) => {
+            if (e.button === 2) {
+                isDragging = false;
+            }
         });
 
         renderer.domElement.addEventListener('mouseleave', () => {
             isDragging = false;
+        });
+
+        renderer.domElement.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
         });
 
         renderer.domElement.addEventListener('wheel', (e) => {
