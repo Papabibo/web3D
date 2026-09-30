@@ -142,6 +142,7 @@
 
             const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
             mesh = new THREE.Mesh(geometry, material);
+            mesh.userData.originalColor = 0x00ff00;
             
             edgeGeometry = new THREE.EdgesGeometry(geometry);
             const lineMaterial = new THREE.LineBasicMaterial({ color: 0x008800 });
@@ -152,17 +153,17 @@
             group.add(mesh);
             objects.push(mesh);
             
-            if (selectedObject === null) {
-                selectObject(mesh);
-            }
+            selectObject(mesh);
         }
 
         function selectObject(object) {
             if (selectedObject) {
-                selectedObject.material.color.set(0x00ff00);
+                selectedObject.material.color.set(selectedObject.userData.originalColor || 0x00ff00);
             }
             selectedObject = object;
-            selectedObject.material.color.set(0xffff00);
+            if (selectedObject) {
+                selectedObject.material.color.set(0xffff00);
+            }
         }
 
         function clearScene() {
@@ -182,7 +183,7 @@
             mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
             
             raycaster.setFromCamera(mouse, camera);
-            return raycaster.intersectObjects(objects);
+            return raycaster.intersectObjects(objects, true);
         }
 
         renderer.domElement.addEventListener('mousedown', (e) => {
@@ -192,8 +193,15 @@
             } else if (e.button === 0) {
                 const intersects = getIntersects(e);
                 if (intersects.length > 0) {
-                    isDraggingObject = true;
-                    selectedObject = intersects[0].object.parent;
+                    const clickedObject = intersects[0].object;
+                    const meshObject = clickedObject.type === 'LineSegments' ? clickedObject.parent : clickedObject;
+                    
+                    if (selectedObject !== meshObject) {
+                        selectObject(meshObject);
+                        isDraggingObject = false;
+                    } else {
+                        isDraggingObject = true;
+                    }
                     previousMousePosition = { x: e.clientX, y: e.clientY };
                 }
             }
