@@ -9,20 +9,66 @@
         body { 
             overflow: hidden; 
             background-color: #000000; 
+            display: flex;
+        }
+        #menu {
+            width: 200px;
+            height: 100vh;
+            background-color: #1a1a1a;
+            padding: 10px;
+            border-right: 1px solid #333;
+        }
+        #menu h2 {
+            color: #ccc;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+        #menu button {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 5px;
+            background-color: #2a2a2a;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-align: left;
+        }
+        #menu button:hover {
+            background-color: #3a3a3a;
+        }
+        #menu button.active {
+            background-color: #006600;
+        }
+        #canvas-container {
+            flex: 1;
+            height: 100vh;
         }
         canvas { display: block; }
     </style>
 </head>
 <body>
+    <div id="menu">
+        <h2>Formes</h2>
+        <button onclick="addShape('cube')">Cube</button>
+        <button onclick="addShape('sphere')">Sphère</button>
+        <button onclick="addShape('torus')">Tore</button>
+        <button onclick="addShape('cylinder')">Cylindre</button>
+        <button onclick="clearScene()">Tout effacer</button>
+    </div>
+    <div id="canvas-container"></div>
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
 
-        renderer.setSize(window.innerWidth, window.innerHeight);
+        const canvasContainer = document.getElementById('canvas-container');
+        renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
         renderer.setClearColor(0x000000);
-        document.body.appendChild(renderer.domElement);
+        canvasContainer.appendChild(renderer.domElement);
 
         let isDragging = false;
         let previousMousePosition = { x: 0, y: 0 };
@@ -71,19 +117,43 @@
         const axisZ = new THREE.Line(axisZGeometry, new THREE.LineBasicMaterial({ color: 0x0000ff }));
         group.add(axisZ);
 
-        // Cube posé sur le plan (face inférieure à y=0)
-        const geometry = new THREE.BoxGeometry();
-        const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-        const cube = new THREE.Mesh(geometry, material);
-        cube.position.y = 0.5;
-        group.add(cube);
-
-        const edges = new THREE.EdgesGeometry(geometry);
-        const lineMaterial = new THREE.LineBasicMaterial({ color: 0x008800 });
-        const wireframe = new THREE.LineSegments(edges, lineMaterial);
-        cube.add(wireframe);
-
         camera.position.z = 5;
+
+        function addShape(type) {
+            let mesh, geometry, edgeGeometry;
+            
+            switch(type) {
+                case 'cube':
+                    geometry = new THREE.BoxGeometry();
+                    break;
+                case 'sphere':
+                    geometry = new THREE.SphereGeometry(0.5, 32, 32);
+                    break;
+                case 'torus':
+                    geometry = new THREE.TorusGeometry(0.5, 0.2, 16, 100);
+                    break;
+                case 'cylinder':
+                    geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
+                    break;
+            }
+
+            const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+            mesh = new THREE.Mesh(geometry, material);
+            
+            edgeGeometry = new THREE.EdgesGeometry(geometry);
+            const lineMaterial = new THREE.LineBasicMaterial({ color: 0x008800 });
+            const wireframe = new THREE.LineSegments(edgeGeometry, lineMaterial);
+            mesh.add(wireframe);
+
+            mesh.position.y = 0.5;
+            group.add(mesh);
+        }
+
+        function clearScene() {
+            while(group.children.length > 4) {
+                group.remove(group.children[4]);
+            }
+        }
 
         renderer.domElement.addEventListener('mousedown', (e) => {
             isDragging = true;
@@ -119,9 +189,9 @@
         }
 
         window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.aspect = canvasContainer.clientWidth / canvasContainer.clientHeight;
             camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
         });
 
         animate();
