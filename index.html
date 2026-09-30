@@ -76,8 +76,13 @@
         let selectedObject = null;
         let objects = [];
 
-        const group = new THREE.Group();
-        scene.add(group);
+        // Group pour les objets mobiles
+        const objectsGroup = new THREE.Group();
+        scene.add(objectsGroup);
+
+        // Group fixe pour le plan, grille et axes
+        const referenceGroup = new THREE.Group();
+        scene.add(referenceGroup);
 
         // Plan de référence XY (sol) - grille visible
         const planeGeometry = new THREE.PlaneGeometry(10, 10);
@@ -90,12 +95,12 @@
         });
         const plane = new THREE.Mesh(planeGeometry, planeMaterial);
         plane.rotation.x = Math.PI / 2;
-        group.add(plane);
+        referenceGroup.add(plane);
         
         // Grille pour mieux visualiser le plan
         const gridHelper = new THREE.GridHelper(10, 10, 0x444444, 0x666666);
         gridHelper.rotation.x = Math.PI / 2;
-        group.add(gridHelper);
+        referenceGroup.add(gridHelper);
 
         // Repère XYZ
         const axisLength = 3;
@@ -104,21 +109,21 @@
             new THREE.Vector3(axisLength, 0, 0)
         ]);
         const axisX = new THREE.Line(axisGeometry, new THREE.LineBasicMaterial({ color: 0xff0000 }));
-        group.add(axisX);
+        referenceGroup.add(axisX);
 
         const axisYGeometry = new THREE.BufferGeometry().setFromPoints([
             new THREE.Vector3(0, 0, 0),
             new THREE.Vector3(0, axisLength, 0)
         ]);
         const axisY = new THREE.Line(axisYGeometry, new THREE.LineBasicMaterial({ color: 0x00ff00 }));
-        group.add(axisY);
+        referenceGroup.add(axisY);
 
         const axisZGeometry = new THREE.BufferGeometry().setFromPoints([
             new THREE.Vector3(0, 0, 0),
             new THREE.Vector3(0, 0, axisLength)
         ]);
         const axisZ = new THREE.Line(axisZGeometry, new THREE.LineBasicMaterial({ color: 0x0000ff }));
-        group.add(axisZ);
+        referenceGroup.add(axisZ);
 
         camera.position.z = 5;
 
@@ -150,7 +155,7 @@
             mesh.add(wireframe);
 
             mesh.position.y = 0.5;
-            group.add(mesh);
+            objectsGroup.add(mesh);
             objects.push(mesh);
             
             selectObject(mesh);
@@ -167,8 +172,8 @@
         }
 
         function clearScene() {
-            while(group.children.length > 4) {
-                group.remove(group.children[4]);
+            while(objectsGroup.children.length > 0) {
+                objectsGroup.remove(objectsGroup.children[0]);
             }
             objects = [];
             selectedObject = null;
@@ -211,8 +216,10 @@
             if (isRotating) {
                 const deltaX = e.clientX - previousMousePosition.x;
                 const deltaY = e.clientY - previousMousePosition.y;
-                group.rotation.y += deltaX * 0.01;
-                group.rotation.x += deltaY * 0.01;
+                referenceGroup.rotation.y += deltaX * 0.01;
+                referenceGroup.rotation.x += deltaY * 0.01;
+                objectsGroup.rotation.y += deltaX * 0.01;
+                objectsGroup.rotation.x += deltaY * 0.01;
                 previousMousePosition = { x: e.clientX, y: e.clientY };
             }
             
