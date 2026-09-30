@@ -27,15 +27,8 @@
         let isDragging = false;
         let previousMousePosition = { x: 0, y: 0 };
 
-        const geometry = new THREE.BoxGeometry();
-        const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-        const cube = new THREE.Mesh(geometry, material);
-        scene.add(cube);
-
-        const edges = new THREE.EdgesGeometry(geometry);
-        const lineMaterial = new THREE.LineBasicMaterial({ color: 0x008800 });
-        const wireframe = new THREE.LineSegments(edges, lineMaterial);
-        cube.add(wireframe);
+        const group = new THREE.Group();
+        scene.add(group);
 
         // Plan de référence XY (sol) - grille visible
         const planeGeometry = new THREE.PlaneGeometry(10, 10);
@@ -48,12 +41,12 @@
         });
         const plane = new THREE.Mesh(planeGeometry, planeMaterial);
         plane.rotation.x = Math.PI / 2;
-        scene.add(plane);
+        group.add(plane);
         
         // Grille pour mieux visualiser le plan
         const gridHelper = new THREE.GridHelper(10, 10, 0x444444, 0x666666);
         gridHelper.rotation.x = Math.PI / 2;
-        scene.add(gridHelper);
+        group.add(gridHelper);
 
         // Repère XYZ
         const axisLength = 3;
@@ -62,21 +55,33 @@
             new THREE.Vector3(axisLength, 0, 0)
         ]);
         const axisX = new THREE.Line(axisGeometry, new THREE.LineBasicMaterial({ color: 0xff0000 }));
-        scene.add(axisX);
+        group.add(axisX);
 
         const axisYGeometry = new THREE.BufferGeometry().setFromPoints([
             new THREE.Vector3(0, 0, 0),
             new THREE.Vector3(0, axisLength, 0)
         ]);
         const axisY = new THREE.Line(axisYGeometry, new THREE.LineBasicMaterial({ color: 0x00ff00 }));
-        scene.add(axisY);
+        group.add(axisY);
 
         const axisZGeometry = new THREE.BufferGeometry().setFromPoints([
             new THREE.Vector3(0, 0, 0),
             new THREE.Vector3(0, 0, axisLength)
         ]);
         const axisZ = new THREE.Line(axisZGeometry, new THREE.LineBasicMaterial({ color: 0x0000ff }));
-        scene.add(axisZ);
+        group.add(axisZ);
+
+        // Cube posé sur le plan (face inférieure à y=0)
+        const geometry = new THREE.BoxGeometry();
+        const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const cube = new THREE.Mesh(geometry, material);
+        cube.position.y = 0.5;
+        group.add(cube);
+
+        const edges = new THREE.EdgesGeometry(geometry);
+        const lineMaterial = new THREE.LineBasicMaterial({ color: 0x008800 });
+        const wireframe = new THREE.LineSegments(edges, lineMaterial);
+        cube.add(wireframe);
 
         camera.position.z = 5;
 
@@ -89,8 +94,8 @@
             if (!isDragging) return;
             const deltaX = e.clientX - previousMousePosition.x;
             const deltaY = e.clientY - previousMousePosition.y;
-            cube.rotation.y += deltaX * 0.01;
-            cube.rotation.x += deltaY * 0.01;
+            group.rotation.y += deltaX * 0.01;
+            group.rotation.x += deltaY * 0.01;
             previousMousePosition = { x: e.clientX, y: e.clientY };
         });
 
