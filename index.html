@@ -75,6 +75,7 @@
         let previousMousePosition = { x: 0, y: 0 };
         let selectedObject = null;
         let objects = [];
+        let zArrow = null;
 
         // Group pour les objets mobiles
         const objectsGroup = new THREE.Group();
@@ -127,6 +128,39 @@
 
         camera.position.z = 5;
 
+        function createZArrow() {
+            if (zArrow) {
+                objectsGroup.remove(zArrow);
+            }
+            
+            const arrowLength = 1.5;
+            const arrowGeometry = new THREE.ConeGeometry(0.1, 0.3, 8);
+            const arrowMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const arrowHead = new THREE.Mesh(arrowGeometry, arrowMaterial);
+            arrowHead.rotation.x = Math.PI / 2;
+            arrowHead.position.z = arrowLength;
+            
+            const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(0, 0, 0),
+                new THREE.Vector3(0, 0, arrowLength)
+            ]);
+            const lineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
+            const arrowLine = new THREE.Line(lineGeometry, lineMaterial);
+            
+            zArrow = new THREE.Group();
+            zArrow.add(arrowLine);
+            zArrow.add(arrowHead);
+            
+            return zArrow;
+        }
+
+        function updateZArrow() {
+            if (zArrow && selectedObject) {
+                zArrow.position.copy(selectedObject.position);
+                zArrow.position.y += 0.75;
+            }
+        }
+
         function addShape(type) {
             let mesh, geometry, edgeGeometry;
             
@@ -168,6 +202,14 @@
             selectedObject = object;
             if (selectedObject) {
                 selectedObject.material.color.set(0xffff00);
+                zArrow = createZArrow();
+                objectsGroup.add(zArrow);
+                updateZArrow();
+            } else {
+                if (zArrow) {
+                    objectsGroup.remove(zArrow);
+                    zArrow = null;
+                }
             }
         }
 
@@ -177,6 +219,7 @@
             }
             objects = [];
             selectedObject = null;
+            zArrow = null;
         }
 
         const raycaster = new THREE.Raycaster();
@@ -224,15 +267,12 @@
             }
             
             if (isDraggingObject && selectedObject) {
-                const deltaX = e.clientX - previousMousePosition.x;
                 const deltaY = e.clientY - previousMousePosition.y;
-                
                 const rect = renderer.domElement.getBoundingClientRect();
-                const moveX = (deltaX / rect.width) * 10;
-                const moveY = (-deltaY / rect.height) * 10;
+                const moveZ = (-deltaY / rect.height) * 10;
                 
-                selectedObject.position.x += moveX;
-                selectedObject.position.y += moveY;
+                selectedObject.position.z += moveZ;
+                updateZArrow();
                 
                 previousMousePosition = { x: e.clientX, y: e.clientY };
             }
