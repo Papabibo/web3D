@@ -71,11 +71,12 @@
         canvasContainer.appendChild(renderer.domElement);
 
         let isRotating = false;
-        let isDraggingObject = false;
+        let isDraggingArrow = false;
+        let selectedArrow = null;
         let previousMousePosition = { x: 0, y: 0 };
         let selectedObject = null;
         let objects = [];
-        let zArrow = null;
+        let arrowGroup = null;
 
         // Group pour les objets mobiles
         const objectsGroup = new THREE.Group();
@@ -128,36 +129,51 @@
 
         camera.position.z = 5;
 
-        function createZArrow() {
-            if (zArrow) {
-                objectsGroup.remove(zArrow);
-            }
-            
+        function createArrow(axis, color) {
             const arrowLength = 1.5;
             const arrowGeometry = new THREE.ConeGeometry(0.1, 0.3, 8);
-            const arrowMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const arrowMaterial = new THREE.MeshBasicMaterial({ color: color });
             const arrowHead = new THREE.Mesh(arrowGeometry, arrowMaterial);
-            arrowHead.rotation.x = Math.PI / 2;
-            arrowHead.position.z = arrowLength;
             
-            const lineGeometry = new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(0, 0, 0),
-                new THREE.Vector3(0, 0, arrowLength)
-            ]);
-            const lineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
+            let linePoints;
+            if (axis === 'X') {
+                arrowHead.rotation.z = Math.PI / 2;
+                arrowHead.position.x = arrowLength;
+                linePoints = [
+                    new THREE.Vector3(0, 0, 0),
+                    new THREE.Vector3(arrowLength, 0, 0)
+                ];
+            } else if (axis === 'Y') {
+                arrowHead.position.y = arrowLength;
+                linePoints = [
+                    new THREE.Vector3(0, 0, 0),
+                    new THREE.Vector3(0, arrowLength, 0)
+                ];
+            } else if (axis === 'Z') {
+                arrowHead.rotation.x = Math.PI / 2;
+                arrowHead.position.z = arrowLength;
+                linePoints = [
+                    new THREE.Vector3(0, 0, 0),
+                    new THREE.Vector3(0, 0, arrowLength)
+                ];
+            }
+            
+            const lineGeometry = new THREE.BufferGeometry().setFromPoints(linePoints);
+            const lineMaterial = new THREE.LineBasicMaterial({ color: color });
             const arrowLine = new THREE.Line(lineGeometry, lineMaterial);
             
-            zArrow = new THREE.Group();
-            zArrow.add(arrowLine);
-            zArrow.add(arrowHead);
+            const arrow = new THREE.Group();
+            arrow.add(arrowLine);
+            arrow.add(arrowHead);
+            arrow.userData = { axis: axis };
             
-            return zArrow;
+            return arrow;
         }
 
-        function updateZArrow() {
-            if (zArrow && selectedObject) {
-                zArrow.position.copy(selectedObject.position);
-                zArrow.position.y += 0.75;
+        function updateArrowGroup() {
+            if (arrowGroup && selectedObject) {
+                arrowGroup.position.copy(selectedObject.position);
+                arrowGroup.position.y += 0.75;
             }
         }
 
@@ -202,13 +218,21 @@
             selectedObject = object;
             if (selectedObject) {
                 selectedObject.material.color.set(0xffff00);
-                zArrow = createZArrow();
-                objectsGroup.add(zArrow);
-                updateZArrow();
+                
+                if (arrowGroup) {
+                    objectsGroup.remove(arrowGroup);
+                }
+                
+                arrowGroup = new THREE.Group();
+                arrowGroup.add(createArrow('X', 0xff0000));
+                arrowGroup.add(createArrow('Y', 0x00ff00));
+                arrowGroup.add(createArrow('Z', 0x0000ff));
+                objectsGroup.add(arrowGroup);
+                updateArrowGroup();
             } else {
-                if (zArrow) {
-                    objectsGroup.remove(zArrow);
-                    zArrow = null;
+                if (arrowGroup) {
+                    objectsGroup.remove(arrowGroup);
+                    arrowGroup = null;
                 }
             }
         }
@@ -219,7 +243,7 @@
             }
             objects = [];
             selectedObject = null;
-            zArrow = null;
+            arrowGroup = null;
         }
 
         const raycaster = new THREE.Raycaster();
@@ -231,7 +255,15 @@
             mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
             
             raycaster.setFromCamera(mouse, camera);
-            return raycaster.intersectObjects(objects, true);
+            
+            const allObjects = [...objects];
+            if (arrowGroup) {
+                arrowGroup.children.forEach(arrow => {
+                    allObjects.push(arrow);
+                });
+            }
+            
+            return raycaster.intersectObjects(allObjects, true);
         }
 
         renderer.domElement.addEventListener('mousedown', (e) => {
@@ -242,15 +274,17 @@
                 const intersects = getIntersects(e);
                 if (intersects.length > 0) {
                     const clickedObject = intersects[0].object;
-                    const meshObject = clickedObject.type === 'LineSegments' ? clickedObject.parent : clickedObject;
                     
-                    if (selectedObject !== meshObject) {
-                        selectObject(meshObject);
-                        isDraggingObject = false;
+                    if (clickedObject.parent && clickedObject.parent.userData && clickedObject.parent.userData.axis) {
+                        selectedArrow = clickedObject.parent;
+                        isDraggingArrow = true;
+                        previousMousePosition = { x: e.clientX, y: e.clientY };
                     } else {
-                        isDraggingObject = true;
+                        const meshObject = clickedObject.type === 'LineSegments' ? clickedObject.parent : clickedObject;
+                        if (objects.includes(meshObject)) {
+                            selectObject(meshObject);
+                        }
                     }
-                    previousMousePosition = { x: e.clientX, y: e.clientY };
                 }
             }
         });
@@ -266,14 +300,22 @@
                 previousMousePosition = { x: e.clientX, y: e.clientY };
             }
             
-            if (isDraggingObject && selectedObject) {
+            if (isDraggingArrow && selectedArrow && selectedObject) {
+                const deltaX = e.clientX - previousMousePosition.x;
                 const deltaY = e.clientY - previousMousePosition.y;
                 const rect = renderer.domElement.getBoundingClientRect();
-                const moveZ = (-deltaY / rect.height) * 10;
+                const moveFactor = 10 / rect.width;
                 
-                selectedObject.position.z += moveZ;
-                updateZArrow();
+                const axis = selectedArrow.userData.axis;
+                if (axis === 'X') {
+                    selectedObject.position.x += deltaX * moveFactor;
+                } else if (axis === 'Y') {
+                    selectedObject.position.y -= deltaY * moveFactor;
+                } else if (axis === 'Z') {
+                    selectedObject.position.z += deltaY * moveFactor;
+                }
                 
+                updateArrowGroup();
                 previousMousePosition = { x: e.clientX, y: e.clientY };
             }
         });
@@ -283,13 +325,15 @@
                 isRotating = false;
             }
             if (e.button === 0) {
-                isDraggingObject = false;
+                isDraggingArrow = false;
+                selectedArrow = null;
             }
         });
 
         renderer.domElement.addEventListener('mouseleave', () => {
             isRotating = false;
-            isDraggingObject = false;
+            isDraggingArrow = false;
+            selectedArrow = null;
         });
 
         renderer.domElement.addEventListener('contextmenu', (e) => {
