@@ -70,8 +70,11 @@
         renderer.setClearColor(0x000000);
         canvasContainer.appendChild(renderer.domElement);
 
-        let isDragging = false;
+        let isRotating = false;
+        let isDraggingObject = false;
         let previousMousePosition = { x: 0, y: 0 };
+        let selectedObject = null;
+        let objects = [];
 
         const group = new THREE.Group();
         scene.add(group);
@@ -147,38 +150,91 @@
 
             mesh.position.y = 0.5;
             group.add(mesh);
+            objects.push(mesh);
+            
+            if (selectedObject === null) {
+                selectObject(mesh);
+            }
+        }
+
+        function selectObject(object) {
+            if (selectedObject) {
+                selectedObject.material.color.set(0x00ff00);
+            }
+            selectedObject = object;
+            selectedObject.material.color.set(0xffff00);
         }
 
         function clearScene() {
             while(group.children.length > 4) {
                 group.remove(group.children[4]);
             }
+            objects = [];
+            selectedObject = null;
+        }
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        function getIntersects(event) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            return raycaster.intersectObjects(objects);
         }
 
         renderer.domElement.addEventListener('mousedown', (e) => {
             if (e.button === 2) {
-                isDragging = true;
+                isRotating = true;
                 previousMousePosition = { x: e.clientX, y: e.clientY };
+            } else if (e.button === 0) {
+                const intersects = getIntersects(e);
+                if (intersects.length > 0) {
+                    isDraggingObject = true;
+                    selectedObject = intersects[0].object.parent;
+                    previousMousePosition = { x: e.clientX, y: e.clientY };
+                }
             }
         });
 
         renderer.domElement.addEventListener('mousemove', (e) => {
-            if (!isDragging) return;
-            const deltaX = e.clientX - previousMousePosition.x;
-            const deltaY = e.clientY - previousMousePosition.y;
-            group.rotation.y += deltaX * 0.01;
-            group.rotation.x += deltaY * 0.01;
-            previousMousePosition = { x: e.clientX, y: e.clientY };
+            if (isRotating) {
+                const deltaX = e.clientX - previousMousePosition.x;
+                const deltaY = e.clientY - previousMousePosition.y;
+                group.rotation.y += deltaX * 0.01;
+                group.rotation.x += deltaY * 0.01;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            }
+            
+            if (isDraggingObject && selectedObject) {
+                const deltaX = e.clientX - previousMousePosition.x;
+                const deltaY = e.clientY - previousMousePosition.y;
+                
+                const rect = renderer.domElement.getBoundingClientRect();
+                const moveX = (deltaX / rect.width) * 10;
+                const moveY = (-deltaY / rect.height) * 10;
+                
+                selectedObject.position.x += moveX;
+                selectedObject.position.y += moveY;
+                
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            }
         });
 
         renderer.domElement.addEventListener('mouseup', (e) => {
             if (e.button === 2) {
-                isDragging = false;
+                isRotating = false;
+            }
+            if (e.button === 0) {
+                isDraggingObject = false;
             }
         });
 
         renderer.domElement.addEventListener('mouseleave', () => {
-            isDragging = false;
+            isRotating = false;
+            isDraggingObject = false;
         });
 
         renderer.domElement.addEventListener('contextmenu', (e) => {
