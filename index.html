@@ -134,10 +134,10 @@
             const arrowGeometry = new THREE.ConeGeometry(0.1, 0.3, 8);
             const arrowMaterial = new THREE.MeshBasicMaterial({ color: color });
             const arrowHead = new THREE.Mesh(arrowGeometry, arrowMaterial);
+            arrowHead.rotation.x = Math.PI;
             
             let linePoints;
             if (axis === 'X') {
-                arrowHead.rotation.z = Math.PI / 2;
                 arrowHead.position.x = arrowLength;
                 linePoints = [
                     new THREE.Vector3(0, 0, 0),
@@ -150,7 +150,6 @@
                     new THREE.Vector3(0, arrowLength, 0)
                 ];
             } else if (axis === 'Z') {
-                arrowHead.rotation.x = Math.PI / 2;
                 arrowHead.position.z = arrowLength;
                 linePoints = [
                     new THREE.Vector3(0, 0, 0),
@@ -310,9 +309,9 @@
                 if (axis === 'X') {
                     selectedObject.position.x += deltaX * moveFactor;
                 } else if (axis === 'Y') {
-                    selectedObject.position.y -= deltaY * moveFactor;
+                    selectedObject.position.y += deltaY * moveFactor;
                 } else if (axis === 'Z') {
-                    selectedObject.position.z += deltaY * moveFactor;
+                    selectedObject.position.z -= deltaY * moveFactor;
                 }
                 
                 updateArrowGroup();
