@@ -1,0 +1,2865 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scène 2D/3D → STL</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0c2338;
+    --panel: #10314c;
+    --panel-2: #143a59;
+    --line: #23557d;
+    --line-soft: #1a4869;
+    --text: #eaf2f8;
+    --muted: #7fa8c4;
+    --accent: #6fe3d6;
+    --hot: #ff8a4c;
+    --danger: #ff6b6b;
+    --rotate: #b08cff;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:
+      linear-gradient(var(--line-soft) 1px, transparent 1px) 0 0/40px 40px,
+      linear-gradient(90deg, var(--line-soft) 1px, transparent 1px) 0 0/40px 40px,
+      var(--bg);
+    background-blend-mode: overlay, overlay, normal;
+    color:var(--text);
+    font-family:'Space Grotesk', system-ui, sans-serif;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+  header{
+    padding:14px 22px;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    align-items:baseline;
+    gap:12px;
+    background:rgba(12,35,56,0.7);
+    backdrop-filter: blur(4px);
+    z-index:2;
+  }
+  header h1{
+    font-size:16px;
+    font-weight:700;
+    letter-spacing:0.02em;
+    margin:0;
+  }
+  header .sub{
+    font-size:12.5px;
+    color:var(--muted);
+  }
+  main{
+    flex:1;
+    display:flex;
+    min-height:0;
+  }
+  #sidebar{
+    width:320px;
+    flex-shrink:0;
+    border-right:1px solid var(--line);
+    background:rgba(16,49,76,0.55);
+    overflow-y:auto;
+    padding:18px 18px 30px;
+  }
+  #viewport{
+    flex:1;
+    position:relative;
+    min-width:0;
+  }
+  #canvas-holder{
+    position:absolute;
+    inset:0;
+  }
+  canvas{display:block;}
+
+  .field{margin-bottom:18px;}
+  .field label{
+    display:flex;
+    justify-content:space-between;
+    font-size:12px;
+    color:var(--muted);
+    margin-bottom:6px;
+    text-transform:none;
+  }
+  .field label .val{
+    font-family:'JetBrains Mono', monospace;
+    color:var(--accent);
+  }
+  input[type=range]{
+    width:100%;
+    accent-color: var(--accent);
+  }
+  input[type=number]{
+    width:100%;
+    background:var(--panel);
+    border:1px solid var(--line);
+    color:var(--text);
+    padding:7px 8px;
+    border-radius:4px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:13px;
+  }
+  input[type=number]:focus{outline:1px solid var(--accent);}
+  input[type=color]{
+    width:100%;
+    height:34px;
+    padding:2px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:4px;
+    cursor:pointer;
+  }
+
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .unit{align-self:center; color:var(--muted); font-size:12px;}
+  .hint{font-size:11px; color:var(--muted); margin-top:5px;}
+  .check{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text);}
+  .check input{accent-color:var(--accent); width:15px; height:15px;}
+
+  textarea, select{
+    width:100%;
+    background:var(--panel);
+    border:1px solid var(--line);
+    color:var(--text);
+    padding:8px 9px;
+    border-radius:4px;
+    font-family:'Space Grotesk', sans-serif;
+    font-size:13px;
+    resize:vertical;
+  }
+  textarea:focus, select:focus{outline:1px solid var(--accent);}
+
+  #dropzone{
+    border:1.5px dashed var(--line);
+    border-radius:6px;
+    padding:22px 14px;
+    text-align:center;
+    font-size:12.5px;
+    color:var(--muted);
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+    margin-bottom:6px;
+  }
+  #dropzone.drag{border-color:var(--accent); background:rgba(111,227,214,0.06); color:var(--text);}
+  #dropzone strong{color:var(--text); display:block; font-size:13.5px; margin-bottom:3px;}
+  #filename{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11.5px;
+    color:var(--accent);
+    margin:8px 0 20px;
+    word-break:break-all;
+    min-height:14px;
+  }
+
+  #thresholdPreview{
+    display:none;
+    width:100%;
+    max-height:160px;
+    background:#0f2338;
+    border:1px solid var(--line-soft);
+    border-radius:4px;
+    margin-bottom:14px;
+    image-rendering:pixelated;
+  }
+
+  fieldset{
+    border:1px solid var(--line-soft);
+    border-radius:6px;
+    padding:14px 14px 4px;
+    margin:0 0 18px;
+  }
+  legend{
+    font-size:11px;
+    letter-spacing:0.03em;
+    color:var(--muted);
+    padding:0 6px;
+  }
+
+  button{
+    width:100%;
+    padding:11px 12px;
+    border-radius:5px;
+    border:1px solid var(--line);
+    background:var(--panel-2);
+    color:var(--text);
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:600;
+    font-size:13.5px;
+    cursor:pointer;
+    transition: transform .05s, background .15s, border-color .15s;
+  }
+  button:hover:not(:disabled){border-color:var(--accent);}
+  button:active:not(:disabled){transform:scale(0.98);}
+  button:disabled{opacity:0.35; cursor:not-allowed;}
+  fieldset button{margin-bottom:14px;}
+
+  .btn-row{display:flex; gap:8px; margin-bottom:10px;}
+  .btn-row button{background:transparent;}
+
+  #exportBtn{
+    background: linear-gradient(180deg, #ff9a5f, var(--hot));
+    color:#241000;
+    border-color:transparent;
+  }
+
+  #status{
+    margin-top:16px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:11.5px;
+    line-height:1.5;
+    color:var(--muted);
+    white-space:pre-wrap;
+  }
+  #status.error{color:var(--danger);}
+  #status.ok{color:var(--accent);}
+
+  #viewCube{
+    position:absolute;
+    top:14px;
+    right:16px;
+    display:grid;
+    grid-template-columns:repeat(4, 30px);
+    grid-template-rows:repeat(2, 26px);
+    gap:3px;
+    z-index:1;
+  }
+  #viewCube button{
+    width:30px;
+    height:26px;
+    padding:0;
+    font-size:13px;
+    background:rgba(16,49,76,0.75);
+    border:1px solid var(--line-soft);
+    backdrop-filter:blur(4px);
+  }
+  #viewCube button:hover{border-color:var(--accent);}
+
+  #rulerToolBtn{
+    position:absolute;
+    top:14px;
+    left:16px;
+    width:auto;
+    padding:8px 10px;
+    font-size:14px;
+    background:rgba(16,49,76,0.75);
+    border:1px solid var(--line-soft);
+    backdrop-filter:blur(4px);
+    z-index:1;
+  }
+  #rulerToolBtn:hover{border-color:var(--accent);}
+  #rulerToolBtn.active{border-color:var(--accent); background:rgba(111,227,214,0.18);}
+
+  #rulerLabel{
+    position:absolute;
+    display:none;
+    transform:translate(-50%, -50%);
+    background:rgba(12,35,56,0.85);
+    border:1px solid var(--accent);
+    color:var(--accent);
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    padding:3px 8px;
+    border-radius:4px;
+    pointer-events:none;
+    white-space:nowrap;
+    z-index:2;
+  }
+
+  #hud{
+    position:absolute;
+    bottom:14px;
+    left:16px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    color:var(--muted);
+    background:rgba(12,35,56,0.6);
+    padding:6px 10px;
+    border-radius:4px;
+    border:1px solid var(--line-soft);
+    pointer-events:none;
+  }
+  #hud b{color:var(--text);}
+  #hudSelection{pointer-events:auto; cursor:text; border-bottom:1px dotted transparent;}
+  #hudSelection:hover{border-bottom-color:var(--muted);}
+  #hudRenameInput{
+    pointer-events:auto;
+    width:110px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    background:var(--panel);
+    color:var(--text);
+    border:1px solid var(--accent);
+    border-radius:3px;
+    padding:1px 4px;
+  }
+
+  ::-webkit-scrollbar{width:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--line); border-radius:4px;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>SCÈNE 2D/3D → STL</h1>
+  <span class="sub">composez images, texte et formes simples, puis exportez le tout en un seul volume imprimable</span>
+</header>
+
+<main>
+  <div id="sidebar">
+
+    <div class="btn-row" style="margin-bottom:10px;">
+      <button id="undoBtn" type="button" disabled>↶ Annuler</button>
+      <button id="redoBtn" type="button" disabled>↷ Rétablir</button>
+    </div>
+    <div class="btn-row" style="margin-bottom:18px;">
+      <button id="saveSceneBtn" type="button">💾 Sauvegarder</button>
+      <button id="loadSceneBtn" type="button">📂 Charger</button>
+      <input type="file" id="loadSceneInput" accept=".json,application/json" style="display:none;">
+    </div>
+
+    <fieldset>
+      <legend>AJOUTER UNE IMAGE / SVG</legend>
+      <div id="dropzone">
+        <strong>Déposer un ou plusieurs fichiers</strong>
+        SVG, PNG ou JPG — clic pour parcourir
+        <input type="file" id="fileInput" accept=".svg,image/svg+xml,.png,.jpg,.jpeg,image/png,image/jpeg" multiple style="display:none;">
+      </div>
+      <div id="filename">aucun fichier</div>
+
+      <div id="imageOptions" style="display:none;">
+        <div class="field">
+          <label>Seuil noir/blanc <span class="val" id="thresholdVal">128</span></label>
+          <input type="range" id="threshold" min="1" max="254" value="128">
+        </div>
+        <div class="field">
+          <label>Résolution de trame <span class="val" id="resVal">180 px</span></label>
+          <input type="range" id="resolution" min="60" max="400" value="180">
+        </div>
+        <div class="field">
+          <label>Lissage du contour <span class="val" id="simplifyVal">1.4 px</span></label>
+          <input type="range" id="simplify" min="0" max="6" step="0.2" value="1.4">
+        </div>
+        <div class="field">
+          <label class="check"><input type="checkbox" id="invert"> Inverser (forme claire sur fond sombre)</label>
+        </div>
+        <canvas id="thresholdPreview"></canvas>
+      </div>
+
+      <div class="field">
+        <label>Largeur cible</label>
+        <div class="row2">
+          <input type="number" id="targetWidth" value="80" min="1" step="1">
+          <div class="unit">mm</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Hauteur d'extrusion</label>
+        <div class="row2">
+          <input type="number" id="imageExtrudeHeight" value="3" min="0.2" step="0.1">
+          <div class="unit">mm</div>
+        </div>
+      </div>
+
+      <button id="addImageBtn" type="button">Ajouter l'image à la scène</button>
+    </fieldset>
+
+    <fieldset>
+      <legend>AJOUTER DU TEXTE</legend>
+      <div class="field">
+        <label>Contenu</label>
+        <textarea id="textInput" rows="2" placeholder="Votre texte…"></textarea>
+      </div>
+      <div class="field">
+        <label>Police</label>
+        <select id="fontFamily">
+          <option value="Arial, Helvetica, sans-serif">Arial</option>
+          <option value="'Arial Black', sans-serif">Arial Black</option>
+          <option value="'Times New Roman', Times, serif">Times New Roman</option>
+          <option value="Georgia, serif">Georgia</option>
+          <option value="'Courier New', Courier, monospace">Courier New</option>
+          <option value="Verdana, Geneva, sans-serif">Verdana</option>
+          <option value="Tahoma, Geneva, sans-serif">Tahoma</option>
+          <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
+          <option value="Impact, 'Arial Narrow Bold', sans-serif">Impact</option>
+          <option value="'Comic Sans MS', cursive">Comic Sans MS</option>
+        </select>
+      </div>
+      <div class="row2" style="margin-bottom:18px;">
+        <label class="check"><input type="checkbox" id="textBold"> Gras</label>
+        <label class="check"><input type="checkbox" id="textItalic"> Italique</label>
+      </div>
+      <div class="field">
+        <label>Espacement des caractères <span class="val" id="letterSpacingVal">0 %</span></label>
+        <input type="range" id="letterSpacing" min="-0.8" max="1" step="0.02" value="0">
+        <div class="hint">Déplace les lettres les unes vers les autres sans les déformer. En négatif, rapprochez jusqu'à les faire se chevaucher : le tracé de contour les fond en un seul solide imprimable.</div>
+      </div>
+      <div class="field">
+        <label>Qualité du rendu <span class="val" id="textResVal">160 px</span></label>
+        <input type="range" id="textResolution" min="60" max="320" step="10" value="160">
+      </div>
+      <div class="field">
+        <label>Lissage du contour <span class="val" id="textSimplifyVal">1.0 px</span></label>
+        <input type="range" id="textSimplify" min="0" max="6" step="0.2" value="1.0">
+      </div>
+      <div class="field">
+        <label>Hauteur des caractères</label>
+        <div class="row2">
+          <input type="number" id="textHeight" value="20" min="0.5" step="0.5">
+          <div class="unit">mm</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Hauteur d'extrusion</label>
+        <div class="row2">
+          <input type="number" id="textExtrudeHeight" value="3" min="0.2" step="0.1">
+          <div class="unit">mm</div>
+        </div>
+      </div>
+      <button id="addTextBtn" type="button">Ajouter le texte à la scène</button>
+    </fieldset>
+
+    <fieldset>
+      <legend>AJOUTER UNE FORME</legend>
+      <div class="field">
+        <label>Type</label>
+        <select id="shapeType">
+          <option value="cube">Cube</option>
+          <option value="sphere">Sphère</option>
+          <option value="cylinder">Cylindre</option>
+          <option value="torus">Anneau</option>
+        </select>
+      </div>
+      <div class="field">
+        <label><span id="shapeSize1Label">Côté</span></label>
+        <div class="row2">
+          <input type="number" id="shapeSize1" value="20" min="0.5" step="0.5">
+          <div class="unit">mm</div>
+        </div>
+      </div>
+      <div class="field" id="shapeSize2Field">
+        <label><span id="shapeSize2Label">Hauteur</span></label>
+        <div class="row2">
+          <input type="number" id="shapeSize2" value="20" min="0.5" step="0.5">
+          <div class="unit">mm</div>
+        </div>
+      </div>
+      <button id="addShapeBtn" type="button">Ajouter la forme à la scène</button>
+    </fieldset>
+
+    <fieldset>
+      <legend>PLATEAU D'IMPRESSION</legend>
+      <div class="row2">
+        <div class="field" style="margin-bottom:0;">
+          <label>Largeur (X)</label>
+          <input type="number" id="bedWidth" value="220" min="10" step="5">
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label>Profondeur (Y)</label>
+          <input type="number" id="bedDepth" value="220" min="10" step="5">
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>SOCLE</legend>
+      <div class="field">
+        <label class="check"><input type="checkbox" id="baseEnabled"> Ajouter un socle</label>
+      </div>
+      <div class="field" id="baseThicknessField" style="display:none;">
+        <label>Épaisseur du socle</label>
+        <div class="row2">
+          <input type="number" id="baseThickness" value="1" min="0.1" step="0.1">
+          <div class="unit">mm</div>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>SÉLECTION</legend>
+      <div class="row2">
+        <div class="field">
+          <label>Pas des flèches</label>
+          <div class="row2">
+            <input type="number" id="nudgeStep" value="1" min="0.1" step="0.1">
+            <div class="unit">mm</div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Accrochage grille</label>
+          <select id="gridSnap">
+            <option value="0">Désactivé</option>
+            <option value="1">1 mm</option>
+            <option value="5">5 mm</option>
+            <option value="10">10 mm</option>
+          </select>
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Accrochage rotation</label>
+          <select id="rotationSnap">
+            <option value="0">Désactivé</option>
+            <option value="15">15°</option>
+            <option value="45">45°</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Couleur</label>
+          <input type="color" id="objectColorInput" value="#d7dfe6" disabled>
+        </div>
+      </div>
+
+      <div id="objectTransformFields" style="display:none;">
+        <div class="row2">
+          <div class="field">
+            <label>X</label>
+            <div class="row2">
+              <input type="number" id="objPosX" step="0.1">
+              <div class="unit">mm</div>
+            </div>
+          </div>
+          <div class="field">
+            <label>Y</label>
+            <div class="row2">
+              <input type="number" id="objPosY" step="0.1">
+              <div class="unit">mm</div>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Rotation</label>
+          <div class="row2">
+            <input type="number" id="objRotation" step="1">
+            <div class="unit">°</div>
+          </div>
+        </div>
+      </div>
+
+      <button id="duplicateBtn" type="button" disabled>Dupliquer la sélection</button>
+      <div class="btn-row">
+        <button id="mirrorHBtn" type="button" disabled>Miroir horizontal</button>
+        <button id="mirrorVBtn" type="button" disabled>Miroir vertical</button>
+      </div>
+      <button id="holeToggleBtn" type="button" disabled>🕳️ Marquer comme trou</button>
+      <div class="hint" style="margin-top:0; margin-bottom:8px;">Un « trou » soustrait la matière des solides à la fusion, au lieu de s'y ajouter — pour percer, creuser une lettre en négatif, loger une vis…</div>
+
+      <div class="btn-row">
+        <button id="groupBtn" type="button" disabled>Lier (sans fusionner)</button>
+        <button id="ungroupBtn" type="button" disabled>Délier</button>
+      </div>
+      <button id="mergeBtn" type="button" disabled>⛭ Fusionner (booléen)</button>
+      <button id="dropToBedBtn" type="button" disabled>Poser sur le plateau</button>
+
+      <div class="hint" style="margin-top:0; margin-bottom:8px;">Aligner — horizontal (X)</div>
+      <div class="btn-row">
+        <button id="alignLeftBtn" type="button" disabled>Gauche</button>
+        <button id="alignCenterXBtn" type="button" disabled>Centre</button>
+        <button id="alignRightBtn" type="button" disabled>Droite</button>
+      </div>
+      <div class="hint" style="margin-top:0; margin-bottom:8px;">Aligner — vertical (Y)</div>
+      <div class="btn-row">
+        <button id="alignBottomBtn" type="button" disabled>Bas</button>
+        <button id="alignCenterYBtn" type="button" disabled>Milieu</button>
+        <button id="alignTopBtn" type="button" disabled>Haut</button>
+      </div>
+      <div class="btn-row">
+        <button id="distributeXBtn" type="button" disabled>Distribuer (X)</button>
+        <button id="distributeYBtn" type="button" disabled>Distribuer (Y)</button>
+      </div>
+
+      <div class="btn-row">
+        <button id="deleteSelectedBtn" type="button" disabled>Supprimer</button>
+        <button id="clearSceneBtn" type="button">Vider la scène</button>
+      </div>
+    </fieldset>
+
+    <button id="exportBtn" disabled>Télécharger le STL</button>
+
+    <div id="status">Ajoutez une image, du texte ou une forme pour commencer. Cliquez pour sélectionner (Maj+clic pour en ajouter plusieurs) — flèches du clavier pour déplacer, Suppr pour retirer, Ctrl/Cmd+D pour dupliquer, Ctrl/Cmd+Z pour annuler.</div>
+  </div>
+
+  <div id="viewport">
+    <div id="canvas-holder"></div>
+    <div id="viewCube">
+      <button data-view="top" title="Dessus">⬆</button>
+      <button data-view="iso" title="Isométrique">◆</button>
+      <button data-view="back" title="Dos">▽</button>
+      <button data-view="bottom" title="Dessous">⬇</button>
+      <button data-view="left" title="Gauche">◀</button>
+      <button data-view="front" title="Face">△</button>
+      <button data-view="right" title="Droite">▶</button>
+    </div>
+    <button id="rulerToolBtn" type="button" title="Outil règle : cliquez deux points pour mesurer">📏 Règle</button>
+    <div id="rulerLabel"></div>
+    <div id="hud">
+      plateau : <b id="hudBed">220×220 mm</b> · pièce : <b id="hudPart">—</b> · sélection : <b id="hudSelection" title="Double-cliquez pour renommer (un seul objet)">—</b><input id="hudRenameInput" type="text" style="display:none;">
+      <div>triangles : <b id="hudTriangles">—</b> · STL estimé : <b id="hudStlSize">—</b></div>
+      <div id="hudOverflowRow" style="display:none; color:#ff6b6b; margin-top:4px;">⚠ <span id="hudOverflow"></span></div>
+    </div>
+  </div>
+</main>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.173.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.173.0/examples/jsm/",
+    "three-mesh-bvh": "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.3/build/index.module.js",
+    "three-bvh-csg": "https://cdn.jsdelivr.net/npm/three-bvh-csg@0.0.16/build/index.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { SVGLoader } from 'three/addons/loaders/SVGLoader.js';
+import { STLExporter } from 'three/addons/exporters/STLExporter.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { Brush, Evaluator, ADDITION, SUBTRACTION } from 'three-bvh-csg';
+
+/* ---------- DOM ---------- */
+const $ = (id) => document.getElementById(id);
+
+const dropzone = $('dropzone');
+const fileInput = $('fileInput');
+const filenameEl = $('filename');
+const imageOptions = $('imageOptions');
+const thresholdInput = $('threshold');
+const resolutionInput = $('resolution');
+const simplifyInput = $('simplify');
+const invertInput = $('invert');
+const thresholdPreviewCanvas = $('thresholdPreview');
+const targetWidthInput = $('targetWidth');
+const addImageBtn = $('addImageBtn');
+
+const textInput = $('textInput');
+const fontFamilyInput = $('fontFamily');
+const textBoldInput = $('textBold');
+const textItalicInput = $('textItalic');
+const letterSpacingInput = $('letterSpacing');
+const textResolutionInput = $('textResolution');
+const textSimplifyInput = $('textSimplify');
+const textHeightInput = $('textHeight');
+const textExtrudeHeightInput = $('textExtrudeHeight');
+const addTextBtn = $('addTextBtn');
+
+const shapeTypeInput = $('shapeType');
+const shapeSize1Input = $('shapeSize1');
+const shapeSize2Input = $('shapeSize2');
+const shapeSize1Label = $('shapeSize1Label');
+const shapeSize2Label = $('shapeSize2Label');
+const shapeSize2Field = $('shapeSize2Field');
+const addShapeBtn = $('addShapeBtn');
+
+const imageExtrudeHeightInput = $('imageExtrudeHeight');
+const baseEnabledInput = $('baseEnabled');
+const baseThicknessField = $('baseThicknessField');
+const baseThicknessInput = $('baseThickness');
+const bedWidthInput = $('bedWidth');
+const bedDepthInput = $('bedDepth');
+bedWidthInput.addEventListener('input', () => rebuildBed());
+bedDepthInput.addEventListener('input', () => rebuildBed());
+
+const nudgeStepInput = $('nudgeStep');
+const gridSnapInput = $('gridSnap');
+const rotationSnapInput = $('rotationSnap');
+const objectColorInput = $('objectColorInput');
+const objectTransformFields = $('objectTransformFields');
+const objPosXInput = $('objPosX');
+const objPosYInput = $('objPosY');
+const objRotationInput = $('objRotation');
+const duplicateBtn = $('duplicateBtn');
+const mirrorHBtn = $('mirrorHBtn');
+const mirrorVBtn = $('mirrorVBtn');
+const groupBtn = $('groupBtn');
+const ungroupBtn = $('ungroupBtn');
+const holeToggleBtn = $('holeToggleBtn');
+const mergeBtn = $('mergeBtn');
+const dropToBedBtn = $('dropToBedBtn');
+const alignLeftBtn = $('alignLeftBtn');
+const alignCenterXBtn = $('alignCenterXBtn');
+const alignRightBtn = $('alignRightBtn');
+const alignBottomBtn = $('alignBottomBtn');
+const alignCenterYBtn = $('alignCenterYBtn');
+const alignTopBtn = $('alignTopBtn');
+const distributeXBtn = $('distributeXBtn');
+const distributeYBtn = $('distributeYBtn');
+const deleteSelectedBtn = $('deleteSelectedBtn');
+const clearSceneBtn = $('clearSceneBtn');
+const exportBtn = $('exportBtn');
+const undoBtn = $('undoBtn');
+const redoBtn = $('redoBtn');
+const saveSceneBtn = $('saveSceneBtn');
+const loadSceneBtn = $('loadSceneBtn');
+const loadSceneInput = $('loadSceneInput');
+const statusEl = $('status');
+const hudPart = $('hudPart');
+const hudBed = $('hudBed');
+const hudTriangles = $('hudTriangles');
+const hudStlSize = $('hudStlSize');
+const hudSelectionEl = $('hudSelection');
+const hudRenameInput = $('hudRenameInput');
+const hudOverflowRowEl = $('hudOverflowRow');
+const hudOverflowEl = $('hudOverflow');
+const thresholdValEl = $('thresholdVal');
+const resValEl = $('resVal');
+const simplifyValEl = $('simplifyVal');
+const letterSpacingValEl = $('letterSpacingVal');
+const textResValEl = $('textResVal');
+const textSimplifyValEl = $('textSimplifyVal');
+const rulerToolBtn = $('rulerToolBtn');
+const rulerLabelEl = $('rulerLabel');
+
+function setStatus(msg, kind){
+  statusEl.textContent = msg;
+  statusEl.className = kind || '';
+}
+
+/* ---------- state ---------- */
+let currentKind = null;   // 'svg' | 'image' — the currently loaded file, if any
+let currentSVGText = null;
+let currentImage = null;  // HTMLImageElement
+let printGroup = null;    // THREE.Group holding every placed item + the base plate
+let sceneItems = [];      // [{ mesh }] — every placed item EXCEPT the base plate
+let baseMesh = null;
+let placementCounter = 0;
+let overflowHelpers = new Map(); // mesh -> red BoxHelper, for items currently outside the bed.
+                                  // Declared here (not near checkBedOverflow further down) because
+                                  // rebuildBed() calls updateHud()/checkBedOverflow() eagerly at
+                                  // page load, before that later part of the script has run.
+let nextGroupId = 1;  // groupId values are 'g1', 'g2', ... — persistent grouping, unlike the ad hoc multi-select
+let undoStack = [];   // each entry: a full snapshot of sceneItems (see snapshotScene())
+let redoStack = [];
+const MAX_UNDO = 50;  // caps memory: each entry clones every item's geometry
+
+/* ---------- file loading ---------- */
+dropzone.addEventListener('click', () => fileInput.click());
+['dragenter','dragover'].forEach(evt => dropzone.addEventListener(evt, e => {
+  e.preventDefault(); dropzone.classList.add('drag');
+}));
+['dragleave','drop'].forEach(evt => dropzone.addEventListener(evt, e => {
+  e.preventDefault(); dropzone.classList.remove('drag');
+}));
+// A single dropped/picked file keeps the existing "stage it, preview, then
+// click Ajouter" flow (only meaningful for one file at a time). Multiple
+// files skip straight to adding each one to the scene with whatever
+// threshold/resolution/width/height settings are currently set.
+dropzone.addEventListener('drop', e => {
+  const files = [...e.dataTransfer.files];
+  if (files.length > 1) handleMultipleFiles(files);
+  else if (files.length === 1) handleFile(files[0]);
+});
+fileInput.addEventListener('change', e => {
+  const files = [...e.target.files];
+  if (files.length > 1) handleMultipleFiles(files);
+  else if (files.length === 1) handleFile(files[0]);
+  fileInput.value = ''; // so picking the same file(s) again still fires 'change'
+});
+
+function handleFile(file){
+  const name = file.name.toLowerCase();
+  filenameEl.textContent = file.name;
+  if (name.endsWith('.svg') || file.type === 'image/svg+xml'){
+    currentKind = 'svg';
+    currentImage = null;
+    imageOptions.style.display = 'none';
+    const reader = new FileReader();
+    reader.onload = () => { currentSVGText = reader.result; setStatus('SVG chargé — cliquez sur "Ajouter l\'image à la scène".'); };
+    reader.readAsText(file);
+  } else if (/\.(png|jpe?g)$/.test(name) || file.type.startsWith('image/')){
+    currentKind = 'image';
+    currentSVGText = null;
+    imageOptions.style.display = 'block';
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        currentImage = img;
+        setStatus('Image chargée — ajustez le seuil puis cliquez sur "Ajouter l\'image à la scène".');
+        scheduleThresholdPreview();
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  } else {
+    setStatus('Format non reconnu. Utilisez un fichier .svg, .png ou .jpg.', 'error');
+  }
+}
+
+function readFileAsDataURL(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Fichier illisible.'));
+    reader.readAsDataURL(file);
+  });
+}
+function readFileAsText(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Fichier illisible.'));
+    reader.readAsText(file);
+  });
+}
+function loadImageElement(dataUrl){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Image illisible.'));
+    img.src = dataUrl;
+  });
+}
+
+// Adds ONE file straight to the scene using whatever threshold/resolution/
+// width/height settings are currently set in the sidebar — no staging, no
+// preview (that only makes sense for a single file being tuned by hand).
+async function addFileDirectly(file){
+  const name = file.name.toLowerCase();
+  const targetWidth = parseFloat(targetWidthInput.value);
+  const height = parseFloat(imageExtrudeHeightInput.value);
+  if (!(targetWidth > 0) || !(height > 0)) throw new Error('Largeur cible / hauteur d\'extrusion invalides.');
+
+  let shapes, label, kind;
+  if (name.endsWith('.svg') || file.type === 'image/svg+xml'){
+    shapes = buildShapesFromSVG(await readFileAsText(file));
+    label = 'SVG'; kind = 'svg';
+  } else if (/\.(png|jpe?g)$/.test(name) || file.type.startsWith('image/')){
+    const img = await loadImageElement(await readFileAsDataURL(file));
+    shapes = buildShapesFromImage(img, {
+      threshold: parseFloat(thresholdInput.value),
+      resolution: parseInt(resolutionInput.value, 10),
+      simplify: parseFloat(simplifyInput.value),
+      invert: invertInput.checked
+    });
+    label = 'Image'; kind = 'image';
+  } else {
+    throw new Error(`format non reconnu (${file.name})`);
+  }
+
+  const geo = new THREE.ExtrudeGeometry(shapes, { depth: height, bevelEnabled: false, steps: 1, curveSegments: 12 });
+  normalizeGeometry(geo, targetWidth);
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, createItemMaterial());
+  mesh.position.set(nextPlacementOffset(), 0, currentZOffset());
+  pushUndo();
+  addItem(mesh, kind, label);
+  refreshScene();
+  exportBtn.disabled = false;
+}
+
+async function handleMultipleFiles(files){
+  setStatus(`Ajout de ${files.length} fichiers…`);
+  let added = 0, failed = 0;
+  for (const file of files){
+    try { await addFileDirectly(file); added++; }
+    catch(err){ failed++; console.error(err); }
+  }
+  frameCameraOnScene(); // guards printGroup === null itself, unlike a bare Box3().setFromObject(printGroup)
+  setStatus(
+    `${added} fichier(s) ajouté(s) à la scène` + (failed ? `, ${failed} en erreur (voir la console).` : '.'),
+    failed ? 'error' : 'ok'
+  );
+}
+
+/* ---------- live labels ---------- */
+thresholdInput.addEventListener('input', () => { thresholdValEl.textContent = thresholdInput.value; scheduleThresholdPreview(); });
+resolutionInput.addEventListener('input', () => { resValEl.textContent = resolutionInput.value + ' px'; scheduleThresholdPreview(); });
+invertInput.addEventListener('change', scheduleThresholdPreview);
+simplifyInput.addEventListener('input', () => simplifyValEl.textContent = parseFloat(simplifyInput.value).toFixed(1) + ' px');
+letterSpacingInput.addEventListener('input', () => letterSpacingValEl.textContent = Math.round(parseFloat(letterSpacingInput.value) * 100) + ' %');
+textResolutionInput.addEventListener('input', () => textResValEl.textContent = textResolutionInput.value + ' px');
+textSimplifyInput.addEventListener('input', () => textSimplifyValEl.textContent = parseFloat(textSimplifyInput.value).toFixed(1) + ' px');
+baseEnabledInput.addEventListener('change', () => {
+  baseThicknessField.style.display = baseEnabledInput.checked ? 'block' : 'none';
+  refreshScene(); // keep existing items' Z and the base footprint in sync live
+});
+baseThicknessInput.addEventListener('input', () => refreshScene());
+
+function updateShapeFieldsUI(){
+  const type = shapeTypeInput.value;
+  if (type === 'cube'){
+    shapeSize1Label.textContent = 'Côté'; shapeSize2Label.textContent = 'Hauteur';
+    shapeSize2Field.style.display = 'block';
+  } else if (type === 'sphere'){
+    shapeSize1Label.textContent = 'Diamètre';
+    shapeSize2Field.style.display = 'none';
+  } else if (type === 'cylinder'){
+    shapeSize1Label.textContent = 'Diamètre'; shapeSize2Label.textContent = 'Hauteur';
+    shapeSize2Field.style.display = 'block';
+  } else {
+    shapeSize1Label.textContent = 'Diamètre extérieur'; shapeSize2Label.textContent = 'Épaisseur du tube';
+    shapeSize2Field.style.display = 'block';
+  }
+}
+shapeTypeInput.addEventListener('change', updateShapeFieldsUI);
+updateShapeFieldsUI();
+
+/* ================================================================
+   RASTER TRACING (pixel-edge boundary extraction, holes included)
+   ================================================================ */
+
+function imageToBinary(img, maxDim, threshold, invert){
+  const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+  const W = Math.max(2, Math.round(img.width * scale));
+  const H = Math.max(2, Math.round(img.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, W, H);
+  const data = ctx.getImageData(0, 0, W, H).data;
+  const bin = new Uint8Array(W * H);
+  for (let i = 0; i < W * H; i++){
+    const r = data[i*4], g = data[i*4+1], b = data[i*4+2], a = data[i*4+3];
+    const lum = 0.299*r + 0.587*g + 0.114*b;
+    let fg = invert ? (lum > threshold) : (lum < threshold);
+    if (a < 128) fg = false;
+    bin[i] = fg ? 1 : 0;
+  }
+  return { bin, W, H };
+}
+
+// Live black/white preview of what the current threshold/invert/resolution
+// settings will actually extrude, so the user can dial it in before
+// committing with "Ajouter" instead of add-then-undo guesswork.
+let previewPending = false;
+function scheduleThresholdPreview(){
+  if (previewPending) return;
+  previewPending = true;
+  requestAnimationFrame(() => { previewPending = false; renderThresholdPreview(); });
+}
+function renderThresholdPreview(){
+  if (currentKind !== 'image' || !currentImage){ thresholdPreviewCanvas.style.display = 'none'; return; }
+  const { bin, W, H } = imageToBinary(currentImage, parseInt(resolutionInput.value, 10), parseFloat(thresholdInput.value), invertInput.checked);
+  thresholdPreviewCanvas.width = W;
+  thresholdPreviewCanvas.height = H;
+  thresholdPreviewCanvas.style.display = 'block';
+  const ctx = thresholdPreviewCanvas.getContext('2d');
+  const imgData = ctx.createImageData(W, H);
+  for (let i = 0; i < W * H; i++){
+    const idx = i * 4;
+    if (bin[i]){ imgData.data[idx]=111; imgData.data[idx+1]=227; imgData.data[idx+2]=214; imgData.data[idx+3]=255; } // accent teal = will be extruded
+    else       { imgData.data[idx]=15;  imgData.data[idx+1]=35;  imgData.data[idx+2]=56;  imgData.data[idx+3]=255; } // dark = discarded
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
+
+// trace all boundary loops (outer + hole) from a binary raster.
+// Grid points are keyed as a single integer (x*KEY_MUL+y) rather than a
+// string — avoids string concat/parse in what is the hottest loop in the app.
+function traceContours(bin, W, H){
+  const isFG = (x,y) => x>=0 && y>=0 && x<W && y<H && bin[y*W+x]===1;
+  const KEY_MUL = H + 2; // strictly greater than any valid y (0..H)
+  const keyOf = (x,y) => x*KEY_MUL + y;
+
+  const edgeMap = new Map(); // int key -> array of [bx,by] targets
+  function add(ax,ay,bx,by){
+    const k = keyOf(ax,ay);
+    let arr = edgeMap.get(k);
+    if (!arr){ arr = []; edgeMap.set(k, arr); }
+    arr.push([bx,by]);
+  }
+  for (let y=0; y<H; y++){
+    for (let x=0; x<W; x++){
+      if (!isFG(x,y)) continue;
+      if (!isFG(x,y-1)) add(x,y, x+1,y);        // top
+      if (!isFG(x+1,y)) add(x+1,y, x+1,y+1);    // right
+      if (!isFG(x,y+1)) add(x+1,y+1, x,y+1);    // bottom
+      if (!isFG(x-1,y)) add(x,y+1, x,y);        // left
+    }
+  }
+  const usedFlags = new Map();
+  for (const k of edgeMap.keys()) usedFlags.set(k, new Array(edgeMap.get(k).length).fill(false));
+
+  const loops = [];
+  for (const [k, arr] of edgeMap){
+    const flags = usedFlags.get(k);
+    for (let i=0; i<arr.length; i++){
+      if (flags[i]) continue;
+      const startX = Math.floor(k / KEY_MUL), startY = k - startX*KEY_MUL;
+      flags[i] = true;
+      const loop = [[startX, startY]];
+      let nextPt = arr[i];
+      let guard = 0;
+      while (!(nextPt[0]===startX && nextPt[1]===startY)){
+        loop.push(nextPt);
+        const nk = keyOf(nextPt[0], nextPt[1]);
+        const narr = edgeMap.get(nk);
+        const nflags = usedFlags.get(nk);
+        let found = -1;
+        for (let j=0; j<narr.length; j++){ if (!nflags[j]){ found = j; break; } }
+        if (found === -1) break;
+        nflags[found] = true;
+        nextPt = narr[found];
+        if (++guard > 300000) break;
+      }
+      loops.push(loop);
+    }
+  }
+  return loops;
+}
+
+function signedArea(pts){
+  let a = 0;
+  for (let i=0; i<pts.length; i++){
+    const [x1,y1] = pts[i], [x2,y2] = pts[(i+1) % pts.length];
+    a += x1*y2 - x2*y1;
+  }
+  return a / 2;
+}
+
+function pointInPoly(pt, poly){
+  let inside = false;
+  for (let i=0, j=poly.length-1; i<poly.length; j=i++){
+    const xi=poly[i][0], yi=poly[i][1], xj=poly[j][0], yj=poly[j][1];
+    const hit = ((yi>pt[1]) !== (yj>pt[1])) && (pt[0] < (xj-xi)*(pt[1]-yi)/(yj-yi)+xi);
+    if (hit) inside = !inside;
+  }
+  return inside;
+}
+
+function perpDist(p, a, b){
+  const dx=b[0]-a[0], dy=b[1]-a[1];
+  const len2 = dx*dx + dy*dy;
+  if (len2 === 0) return Math.hypot(p[0]-a[0], p[1]-a[1]);
+  const t = ((p[0]-a[0])*dx + (p[1]-a[1])*dy) / len2;
+  const px = a[0]+t*dx, py = a[1]+t*dy;
+  return Math.hypot(p[0]-px, p[1]-py);
+}
+// Iterative Douglas-Peucker: a "keep" flag array + an explicit stack avoids
+// both call-stack depth limits and the O(n log n) intermediate slice/concat
+// allocations of a recursive version, on what can be a several-thousand-point loop.
+function douglasPeucker(pts, eps){
+  const n = pts.length;
+  if (n < 3 || eps <= 0) return pts;
+  const keep = new Uint8Array(n);
+  keep[0] = 1; keep[n-1] = 1;
+  const stack = [[0, n-1]];
+  while (stack.length){
+    const [start, end] = stack.pop();
+    if (end <= start + 1) continue;
+    let maxD = 0, idx = -1;
+    for (let i=start+1; i<end; i++){
+      const d = perpDist(pts[i], pts[start], pts[end]);
+      if (d > maxD){ maxD = d; idx = i; }
+    }
+    if (maxD > eps){
+      keep[idx] = 1;
+      stack.push([start, idx], [idx, end]);
+    }
+  }
+  const out = [];
+  for (let i=0; i<n; i++) if (keep[i]) out.push(pts[i]);
+  return out;
+}
+
+function buildShapesFromImage(img, opts){
+  const { bin, W, H } = imageToBinary(img, opts.resolution, opts.threshold, opts.invert);
+  return contoursToShapes(bin, W, H, opts.simplify);
+}
+
+// Shared by the raster-image and text pipelines: turns a binary mask into
+// THREE.Shape objects (with holes correctly assigned), Y already flipped.
+function contoursToShapes(bin, W, H, simplify){
+  let loops = traceContours(bin, W, H);
+  if (loops.length === 0) throw new Error('Aucun contour détecté — ajustez le seuil ou l\'inversion.');
+
+  loops = loops.map(l => douglasPeucker(l, simplify));
+
+  const outers = [];
+  const holes = [];
+  for (const l of loops){
+    if (l.length < 3) continue;
+    const a = signedArea(l);
+    if (a > 0) outers.push(l); else if (a < 0) holes.push(l);
+  }
+  if (outers.length === 0) throw new Error('Aucune forme fermée détectée — ajustez le seuil.');
+
+  const groups = outers.map(o => ({ outer: o, holes: [] }));
+  for (const h of holes){
+    for (const g of groups){
+      if (pointInPoly(h[0], g.outer)){ g.holes.push(h); break; }
+    }
+  }
+
+  return groups.map(g => {
+    const shape = new THREE.Shape(g.outer.map(p => new THREE.Vector2(p[0], -p[1])));
+    for (const h of g.holes){
+      shape.holes.push(new THREE.Path(h.map(p => new THREE.Vector2(p[0], -p[1]))));
+    }
+    return shape;
+  });
+}
+
+/* ================================================================
+   TEXT RENDERING — one mesh PER character (draggable independently)
+   ================================================================ */
+
+// Builds one independent, individually-positioned Mesh per non-space
+// character. A single scratch <canvas> is reused for every width
+// measurement AND every glyph raster in the call (resizing it between
+// glyphs clears it anyway, which is exactly what's wanted). Each glyph
+// gets its OWN material (see createItemMaterial) so any one character can
+// later be recolored without affecting its neighbours.
+function buildTextMeshes(opts){
+  if (!opts.text || !opts.text.trim()) throw new Error('Saisissez du texte à extruder.');
+
+  const fontStyle = `${opts.italic ? 'italic ' : ''}${opts.bold ? 'bold ' : ''}${opts.sizePx}px ${opts.fontFamily}`;
+  const spacingPx = opts.spacingFraction * opts.sizePx;
+  const lineHeight = opts.sizePx * 1.25;
+  const padLocal = Math.ceil(opts.sizePx * 0.3);
+  const baselineOffset = opts.sizePx * 0.8;
+  const localH = Math.ceil(lineHeight) + padLocal * 2;
+  const localBaselineY = baselineOffset + padLocal;
+
+  const scratch = document.createElement('canvas');
+  const ctx = scratch.getContext('2d');
+  ctx.font = fontStyle;
+
+  // Layout pass: pure measurement, no drawing — figures out where every
+  // character's cursor falls (spacing, per-line centering) and its own
+  // advance width, so it's only ever measured once.
+  const lines = opts.text.split('\n').map(line => {
+    const chars = [...line];
+    let cx = 0;
+    const positioned = chars.map(ch => {
+      const w = ctx.measureText(ch).width;
+      const entry = { ch, x: cx, w };
+      cx += w + spacingPx;
+      return entry;
+    });
+    return { chars: positioned, width: chars.length ? Math.max(cx - spacingPx, 0) : 0 };
+  });
+  const maxWidth = Math.max(1, ...lines.map(l => l.width));
+  const totalHeight = lineHeight * lines.length;
+  const centerXpx = maxWidth / 2;
+  const centerYpx = totalHeight / 2;
+
+  // Render pass: one glyph at a time onto the shared scratch canvas.
+  const meshes = [];
+  lines.forEach((line, li) => {
+    const lineOffsetX = (maxWidth - line.width) / 2; // center this line within the block
+    const baselineY = lineHeight * li + baselineOffset;
+    for (const { ch, x, w } of line.chars){
+      if (!ch.trim()) continue; // whitespace: cursor already advanced, no mesh
+
+      const localW = Math.max(1, Math.ceil(w)) + padLocal * 2;
+      scratch.width = localW; scratch.height = localH; // clears the bitmap AND resets ctx state
+      ctx.font = fontStyle;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = '#000';
+      ctx.fillText(ch, padLocal, localBaselineY);
+
+      const data = ctx.getImageData(0, 0, localW, localH).data;
+      const bin = new Uint8Array(localW * localH);
+      for (let i = 0; i < localW * localH; i++) bin[i] = data[i*4 + 3] >= 128 ? 1 : 0; // alpha-based, no threshold needed
+      const shapes = contoursToShapes(bin, localW, localH, opts.simplify);
+
+      const geo = new THREE.ExtrudeGeometry(shapes, { depth: opts.extrudeHeight, bevelEnabled: false, steps: 1, curveSegments: 12 });
+      geo.scale(opts.scale, opts.scale, 1);
+      geo.computeVertexNormals();
+
+      const mesh = new THREE.Mesh(geo, createItemMaterial());
+      const cxGlobal = lineOffsetX + x;
+      const worldX = (cxGlobal - centerXpx) * opts.scale - padLocal * opts.scale;
+      const worldY = (centerYpx - baselineY) * opts.scale + localBaselineY * opts.scale;
+      mesh.position.set(worldX, worldY, 0);
+      mesh.userData.charLabel = ch;
+      meshes.push(mesh);
+    }
+  });
+
+  if (meshes.length === 0) throw new Error('Aucun caractère imprimable trouvé dans le texte.');
+  return meshes;
+}
+
+/* ================================================================
+   SVG PATH LOADING
+   ================================================================ */
+function buildShapesFromSVG(svgText){
+  const loader = new SVGLoader();
+  const data = loader.parse(svgText);
+  const shapes = [];
+  for (const path of data.paths){
+    for (const s of SVGLoader.createShapes(path)){
+      // SVG (like image) coordinates are Y-down; flip here, on the flat 2D
+      // points, BEFORE extrusion. ExtrudeGeometry re-normalizes winding from
+      // whatever point order it's given, so this keeps outward-facing normals
+      // correct. Flipping the built 3D mesh afterwards instead (a negative-
+      // scale mirror) would invert every triangle's winding and turn the
+      // model inside out — visible as wrong shading and inverted STL normals.
+      const flat = s.extractPoints(12);
+      const shape = new THREE.Shape(flat.shape.map(p => new THREE.Vector2(p.x, -p.y)));
+      for (const hole of flat.holes){
+        shape.holes.push(new THREE.Path(hole.map(p => new THREE.Vector2(p.x, -p.y))));
+      }
+      shapes.push(shape);
+    }
+  }
+  if (shapes.length === 0) throw new Error('Aucune forme exploitable trouvée dans le SVG.');
+  return shapes;
+}
+
+/* ================================================================
+   GEOMETRY NORMALIZATION / MIRRORING
+   ================================================================ */
+function normalizeGeometry(geometry, targetWidthMM){
+  geometry.computeBoundingBox();
+  let bb = geometry.boundingBox;
+  const w = bb.max.x - bb.min.x;
+  const scale = w > 0 ? targetWidthMM / w : 1;
+  geometry.scale(scale, scale, 1);
+  geometry.computeBoundingBox();
+  bb = geometry.boundingBox;
+  geometry.translate(-(bb.max.x+bb.min.x)/2, -(bb.max.y+bb.min.y)/2, 0);
+  return geometry;
+}
+
+// Mirrors a geometry in place around its OWN current center (so the object
+// stays anchored at the same world position regardless of where its local
+// origin happens to sit — text glyph geometries in particular are NOT
+// centered at their origin). A plain negative-scale mirror flips every
+// triangle's winding, which would turn the mesh inside-out (wrong shading,
+// inverted STL normals) — same root cause as the SVG Y-flip bug fixed
+// earlier — so the index buffer's winding is reversed right back afterwards.
+function mirrorGeometryInPlace(geometry, axis){
+  geometry.computeBoundingBox();
+  const c = new THREE.Vector3();
+  geometry.boundingBox.getCenter(c);
+  geometry.translate(-c.x, -c.y, -c.z);
+  if (axis === 'x') geometry.scale(-1, 1, 1); else geometry.scale(1, -1, 1);
+  const index = geometry.index;
+  if (index){
+    for (let i = 0; i < index.count; i += 3){
+      const a = index.getX(i + 1), b = index.getX(i + 2);
+      index.setX(i + 1, b); index.setX(i + 2, a);
+    }
+    index.needsUpdate = true;
+  }
+  geometry.computeVertexNormals();
+  geometry.translate(c.x, c.y, c.z);
+}
+
+/* ================================================================
+   SCENE CONTENT MANAGEMENT (additive: items persist across "Ajouter" clicks)
+   ================================================================ */
+
+// Every item gets its OWN material (never shared) so any single object can
+// be recolored later without affecting anything else — see "Couleur" in the
+// SÉLECTION panel. This does mean every deletion path must dispose a
+// material alongside its geometry now, unlike the old one-shared-material
+// design (the base plate is the one exception: it keeps its own fixed,
+// never-disposed baseMaterial, since it's not a selectable/colorable item).
+function createItemMaterial(hexColor){
+  return new THREE.MeshStandardMaterial({ color: hexColor || 0xd7dfe6, roughness: 0.55, metalness: 0.04 });
+}
+
+// Permanently disposes everything a scene item owns on the GPU side: its
+// geometry, its material, AND — for a mesh marked as a "hole" — the dashed
+// outline overlay hanging off it as a child. Removing a mesh from the scene
+// doesn't free any of that on its own, and the overlay in particular is easy
+// to forget since it's a separate object with its own geometry+material.
+function disposeItemMesh(mesh){
+  mesh.geometry.dispose();
+  mesh.material.dispose();
+  const overlay = mesh.children.find(c => c.userData.isHoleOverlay);
+  if (overlay){ overlay.geometry.dispose(); overlay.material.dispose(); }
+}
+
+function ensureGroup(){
+  if (!printGroup){ printGroup = new THREE.Group(); scene.add(printGroup); }
+  return printGroup;
+}
+
+function currentZOffset(){
+  return baseEnabledInput.checked ? (parseFloat(baseThicknessInput.value) || 1) : 0;
+}
+
+// Keeps every existing item's Z in sync with the current base on/off state
+// and thickness, so toggling the base after items are already placed doesn't
+// leave them floating or sunken relative to it.
+function resyncZOffsets(){
+  const z = currentZOffset();
+  for (const item of sceneItems) item.mesh.position.z = z;
+}
+
+// Rebuilds the base plate to fit the current XY footprint of everything
+// placed so far. Cheap enough to redo on every add/delete/setting change
+// rather than trying to incrementally resize it.
+function rebuildBase(){
+  if (baseMesh){
+    printGroup.remove(baseMesh);
+    baseMesh.geometry.dispose();
+    baseMesh = null;
+  }
+  if (!baseEnabledInput.checked || sceneItems.length === 0) return;
+
+  const box = new THREE.Box3();
+  for (const item of sceneItems) box.expandByObject(item.mesh);
+  if (!isFinite(box.min.x)) return;
+
+  const shape = new THREE.Shape([
+    new THREE.Vector2(box.min.x, box.min.y),
+    new THREE.Vector2(box.max.x, box.min.y),
+    new THREE.Vector2(box.max.x, box.max.y),
+    new THREE.Vector2(box.min.x, box.max.y)
+  ]);
+  const thickness = parseFloat(baseThicknessInput.value) || 1;
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false });
+  geo.computeVertexNormals();
+  baseMesh = new THREE.Mesh(geo, baseMaterial);
+  baseMesh.position.z = 0;
+  ensureGroup().add(baseMesh);
+}
+
+function refreshScene(){
+  if (!printGroup){ updateHud(); return; }
+  resyncZOffsets();
+  rebuildBase();
+  updateHud();
+}
+
+// Small deterministic jitter so successive additions don't land exactly on
+// top of each other — the user drags them apart from there.
+function nextPlacementOffset(){
+  const offset = (placementCounter % 4) * 15 - 22.5;
+  placementCounter++;
+  return offset;
+}
+
+function addItem(mesh, kind, label){
+  mesh.userData.selectable = true;
+  mesh.userData.kind = kind;
+  mesh.userData.label = label;
+  ensureGroup().add(mesh);
+  sceneItems.push({ mesh });
+}
+
+// Disposes every current item's geometry AND material (each is unique to
+// its mesh now — see createItemMaterial) plus the base plate's geometry,
+// and removes printGroup from the scene — the common first step of
+// clearing, undo/redo restore, and loading a saved scene, which all
+// otherwise start by throwing away whatever is currently there.
+function teardownSceneContent(){
+  if (printGroup){
+    for (const item of sceneItems) disposeItemMesh(item.mesh);
+    if (baseMesh) baseMesh.geometry.dispose();
+    scene.remove(printGroup);
+  }
+  printGroup = null;
+  sceneItems = [];
+  baseMesh = null;
+  deselectAll();
+}
+
+// ---------- undo / redo: full-scene snapshots ----------
+// Simpler and far more robust than tracking per-action deltas (drag, rotate,
+// mirror, resize, delete, duplicate, clear all become the same restore
+// operation) — worth the memory cost of cloning geometry for a scene this size.
+function snapshotScene(){
+  return sceneItems.map(item => ({
+    geometry: item.mesh.geometry.clone(),
+    position: item.mesh.position.clone(),
+    rotation: item.mesh.rotation.z,
+    kind: item.mesh.userData.kind,
+    label: item.mesh.userData.label,
+    groupId: item.mesh.userData.groupId || null,
+    isHole: !!item.mesh.userData.isHole,
+    color: '#' + item.mesh.material.color.getHexString()
+  }));
+}
+
+function restoreSnapshot(snapshot){
+  teardownSceneContent();
+
+  for (const entry of snapshot){
+    // Clone the geometry again on the way OUT too: the restored mesh must
+    // never share it with the stored snapshot, or mutating it later (e.g. a
+    // mirror or resize) would silently corrupt that history entry.
+    const mesh = new THREE.Mesh(entry.geometry.clone(), createItemMaterial(entry.color));
+    mesh.position.copy(entry.position);
+    mesh.rotation.z = entry.rotation;
+    mesh.userData.groupId = entry.groupId || null;
+    mesh.userData.isHole = !!entry.isHole;
+    updateHoleVisual(mesh);
+    addItem(mesh, entry.kind, entry.label);
+  }
+  refreshScene();
+  exportBtn.disabled = sceneItems.length === 0;
+}
+
+function pushUndo(){
+  undoStack.push(snapshotScene());
+  if (undoStack.length > MAX_UNDO) undoStack.shift();
+  redoStack = []; // a new edit invalidates whatever could have been redone
+  updateUndoRedoButtons();
+}
+
+function undo(){
+  if (undoStack.length === 0) return;
+  redoStack.push(snapshotScene());
+  restoreSnapshot(undoStack.pop());
+  updateUndoRedoButtons();
+  setStatus('Annulé.', 'ok');
+}
+
+function redo(){
+  if (redoStack.length === 0) return;
+  undoStack.push(snapshotScene());
+  restoreSnapshot(redoStack.pop());
+  updateUndoRedoButtons();
+  setStatus('Rétabli.', 'ok');
+}
+
+function updateUndoRedoButtons(){
+  undoBtn.disabled = undoStack.length === 0;
+  redoBtn.disabled = redoStack.length === 0;
+}
+
+undoBtn.addEventListener('click', undo);
+redoBtn.addEventListener('click', redo);
+
+function deleteSelected(){
+  const count = selectedMeshes.size;
+  if (count === 0) return;
+  pushUndo();
+  for (const mesh of selectedMeshes){
+    printGroup.remove(mesh);
+    disposeItemMesh(mesh);
+  }
+  const toDelete = selectedMeshes;
+  sceneItems = sceneItems.filter(it => !toDelete.has(it.mesh));
+  deselectAll();
+  refreshScene();
+  exportBtn.disabled = sceneItems.length === 0;
+  setStatus(count > 1 ? `${count} éléments supprimés.` : 'Élément supprimé.');
+}
+
+function clearScene(){
+  if (sceneItems.length > 0) pushUndo();
+  teardownSceneContent();
+  placementCounter = 0;
+  exportBtn.disabled = true;
+  updateHud();
+  setStatus('Scène vidée — ajoutez une image, du texte ou une forme pour recommencer.');
+}
+
+/* ================================================================
+   SAVE / LOAD SCENE (a small local .json file — raw geometry + transforms,
+   not the original source parameters, so reloading never depends on
+   re-running image tracing or text/font rendering identically later).
+   ================================================================ */
+function serializeGeometry(geo){
+  return {
+    position: Array.from(geo.attributes.position.array),
+    index: geo.index ? Array.from(geo.index.array) : null
+  };
+}
+function deserializeGeometry(data){
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(data.position, 3));
+  if (data.index) geo.setIndex(data.index);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function saveScene(){
+  if (sceneItems.length === 0){ setStatus('La scène est vide — rien à sauvegarder.', 'error'); return; }
+  const data = {
+    version: 1,
+    bed: { width: parseFloat(bedWidthInput.value) || 220, depth: parseFloat(bedDepthInput.value) || 220 },
+    base: { enabled: baseEnabledInput.checked, thickness: parseFloat(baseThicknessInput.value) || 1 },
+    items: sceneItems.map(item => ({
+      kind: item.mesh.userData.kind,
+      label: item.mesh.userData.label,
+      groupId: item.mesh.userData.groupId || null,
+      isHole: !!item.mesh.userData.isHole,
+      color: '#' + item.mesh.material.color.getHexString(),
+      position: [item.mesh.position.x, item.mesh.position.y, item.mesh.position.z],
+      rotationZ: item.mesh.rotation.z,
+      geometry: serializeGeometry(item.mesh.geometry)
+    }))
+  };
+  const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'scene.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  setStatus(`Scène sauvegardée (${sceneItems.length} objet(s)).`, 'ok');
+}
+
+function loadSceneFromJSON(data){
+  if (!data || !Array.isArray(data.items)) throw new Error('fichier de scène invalide.');
+  pushUndo(); // loading can itself be undone back to whatever was open before
+  teardownSceneContent();
+
+  if (data.bed){ bedWidthInput.value = data.bed.width; bedDepthInput.value = data.bed.depth; }
+  if (data.base){
+    baseEnabledInput.checked = !!data.base.enabled;
+    baseThicknessInput.value = data.base.thickness;
+    baseThicknessField.style.display = data.base.enabled ? 'block' : 'none';
+  }
+  rebuildBed();
+
+  let maxGroupNum = 0;
+  for (const entry of data.items){
+    const mesh = new THREE.Mesh(deserializeGeometry(entry.geometry), createItemMaterial(entry.color));
+    mesh.position.set(entry.position[0], entry.position[1], entry.position[2]);
+    mesh.rotation.z = entry.rotationZ || 0;
+    mesh.userData.groupId = entry.groupId || null;
+    mesh.userData.isHole = !!entry.isHole;
+    updateHoleVisual(mesh);
+    if (entry.groupId){
+      const n = parseInt(String(entry.groupId).replace(/\D/g, ''), 10);
+      if (!isNaN(n)) maxGroupNum = Math.max(maxGroupNum, n);
+    }
+    addItem(mesh, entry.kind, entry.label);
+  }
+  nextGroupId = Math.max(nextGroupId, maxGroupNum + 1); // never reuse a group id from the loaded file
+
+  refreshScene();
+  exportBtn.disabled = sceneItems.length === 0;
+  setStatus(`Scène chargée (${data.items.length} objet(s)).`, 'ok');
+}
+
+saveSceneBtn.addEventListener('click', saveScene);
+loadSceneBtn.addEventListener('click', () => loadSceneInput.click());
+loadSceneInput.addEventListener('change', async (event) => {
+  const file = event.target.files[0];
+  loadSceneInput.value = '';
+  if (!file) return;
+  try {
+    loadSceneFromJSON(JSON.parse(await readFileAsText(file)));
+  } catch(err){
+    setStatus('Erreur au chargement de la scène : ' + err.message, 'error');
+    console.error(err);
+  }
+});
+
+// Clones the geometry AND material of every selected item (neither is ever
+// shared — each clone must be independently disposable/recolorable later)
+// and adds the copies as new, selected items offset slightly from their
+// originals.
+function duplicateSelected(){
+  if (selectedMeshes.size === 0) return;
+  pushUndo();
+  const originals = [...selectedMeshes];
+  // If the originals were grouped, the copies get their OWN fresh shared
+  // group id — keeping the duplicate cohesive without merging it into the
+  // source group.
+  const wasGrouped = originals.some(m => m.userData.groupId);
+  const newGid = wasGrouped ? 'g' + (nextGroupId++) : null;
+  clearSelectionHelpers();
+  const newSelection = new Set();
+  for (const mesh of originals){
+    const newMesh = new THREE.Mesh(mesh.geometry.clone(), mesh.material.clone());
+    newMesh.position.copy(mesh.position);
+    newMesh.position.x += 10;
+    newMesh.rotation.copy(mesh.rotation);
+    newMesh.userData.groupId = newGid;
+    newMesh.userData.isHole = mesh.userData.isHole;
+    if (newMesh.userData.isHole) updateHoleVisual(newMesh);
+    addItem(newMesh, mesh.userData.kind, mesh.userData.label);
+    newSelection.add(newMesh);
+  }
+  selectedMeshes = newSelection;
+  for (const m of newSelection) addSelectionHelper(m);
+  afterSelectionChange();
+  refreshScene();
+  exportBtn.disabled = false;
+  setStatus(newSelection.size > 1 ? `${newSelection.size} objets dupliqués.` : 'Objet dupliqué.', 'ok');
+}
+
+function mirrorSelected(axis){
+  if (selectedMeshes.size === 0) return;
+  pushUndo();
+  for (const mesh of selectedMeshes){
+    mirrorGeometryInPlace(mesh.geometry, axis);
+    if (mesh.userData.isHole) updateHoleVisual(mesh); // its dashed-edge overlay traced the old geometry
+  }
+  for (const helper of selectionHelpers.values()) helper.update();
+  updateGizmoForSelection();
+  setStatus(selectedMeshes.size > 1 ? 'Objets mis en miroir.' : 'Objet mis en miroir.', 'ok');
+}
+
+// Every one of our shape types (image/SVG extrusions, text glyphs, and every
+// primitive) already has its geometry built with the bottom at local Z=0 —
+// so sitting an item "on the bed" is just moving it so its world-space
+// bounding-box bottom lands exactly at the current base height.
+function dropSelectedToBed(){
+  if (selectedMeshes.size === 0) return;
+  pushUndo();
+  const targetZ = currentZOffset();
+  for (const mesh of selectedMeshes){
+    const box = new THREE.Box3().setFromObject(mesh);
+    mesh.position.z += targetZ - box.min.z;
+  }
+  for (const helper of selectionHelpers.values()) helper.update();
+  updateGizmoForSelection();
+  syncNumericFields();
+  updateHud();
+  setStatus(selectedMeshes.size > 1 ? 'Sélection posée sur le plateau.' : 'Objet posé sur le plateau.', 'ok');
+}
+
+// mode: 'min' (gauche/bas), 'max' (droite/haut), or 'center' (aligns every
+// object's own center to the center of the WHOLE selection's bounding box).
+function alignSelection(axis, mode){
+  if (selectedMeshes.size < 2) return;
+  pushUndo();
+  const meshes = [...selectedMeshes];
+  const boxes = meshes.map(m => new THREE.Box3().setFromObject(m));
+
+  let target;
+  if (mode === 'min') target = Math.min(...boxes.map(b => b.min[axis]));
+  else if (mode === 'max') target = Math.max(...boxes.map(b => b.max[axis]));
+  else {
+    const overall = new THREE.Box3();
+    for (const b of boxes) overall.union(b);
+    target = (overall.min[axis] + overall.max[axis]) / 2;
+  }
+
+  meshes.forEach((mesh, i) => {
+    const b = boxes[i];
+    const current = mode === 'min' ? b.min[axis] : mode === 'max' ? b.max[axis] : (b.min[axis] + b.max[axis]) / 2;
+    mesh.position[axis] += target - current;
+  });
+
+  for (const helper of selectionHelpers.values()) helper.update();
+  updateGizmoForSelection();
+  syncNumericFields();
+  updateHud();
+  setStatus('Sélection alignée.', 'ok');
+}
+
+// Keeps the two extreme objects (by position along the chosen axis) fixed
+// and spaces every object in between so the GAPS between their edges are
+// equal — accounts for different object sizes, not just equal center spacing.
+function distributeSelection(axis){
+  if (selectedMeshes.size < 3) return;
+  pushUndo();
+  const items = [...selectedMeshes]
+    .map(mesh => ({ mesh, box: new THREE.Box3().setFromObject(mesh) }))
+    .sort((a, b) => a.box.min[axis] - b.box.min[axis]);
+
+  const start = items[0].box.min[axis];
+  const end = items[items.length - 1].box.max[axis];
+  const totalSize = items.reduce((sum, it) => sum + (it.box.max[axis] - it.box.min[axis]), 0);
+  const gap = (end - start - totalSize) / (items.length - 1);
+
+  let cursor = start;
+  for (const it of items){
+    const size = it.box.max[axis] - it.box.min[axis];
+    it.mesh.position[axis] += cursor - it.box.min[axis];
+    cursor += size + gap;
+  }
+
+  for (const helper of selectionHelpers.values()) helper.update();
+  updateGizmoForSelection();
+  syncNumericFields();
+  updateHud();
+  setStatus('Sélection distribuée.', 'ok');
+}
+
+deleteSelectedBtn.addEventListener('click', deleteSelected);
+clearSceneBtn.addEventListener('click', clearScene);
+duplicateBtn.addEventListener('click', duplicateSelected);
+mirrorHBtn.addEventListener('click', () => mirrorSelected('x'));
+mirrorVBtn.addEventListener('click', () => mirrorSelected('y'));
+dropToBedBtn.addEventListener('click', dropSelectedToBed);
+alignLeftBtn.addEventListener('click', () => alignSelection('x', 'min'));
+alignCenterXBtn.addEventListener('click', () => alignSelection('x', 'center'));
+alignRightBtn.addEventListener('click', () => alignSelection('x', 'max'));
+alignBottomBtn.addEventListener('click', () => alignSelection('y', 'min'));
+alignCenterYBtn.addEventListener('click', () => alignSelection('y', 'center'));
+alignTopBtn.addEventListener('click', () => alignSelection('y', 'max'));
+distributeXBtn.addEventListener('click', () => distributeSelection('x'));
+distributeYBtn.addEventListener('click', () => distributeSelection('y'));
+
+/* ================================================================
+   "AJOUTER" ACTIONS
+   ================================================================ */
+
+function handleAddImage(){
+  try{
+    if (!currentKind) throw new Error('Chargez d\'abord un fichier SVG ou image.');
+    const targetWidth = parseFloat(targetWidthInput.value);
+    const height = parseFloat(imageExtrudeHeightInput.value);
+    if (!(targetWidth > 0)) throw new Error('La largeur cible doit être supérieure à 0.');
+    if (!(height > 0)) throw new Error('La hauteur d\'extrusion doit être supérieure à 0.');
+
+    let shapes, label;
+    if (currentKind === 'image'){
+      if (!currentImage) throw new Error('Chargez d\'abord une image.');
+      shapes = buildShapesFromImage(currentImage, {
+        threshold: parseFloat(thresholdInput.value),
+        resolution: parseInt(resolutionInput.value, 10),
+        simplify: parseFloat(simplifyInput.value),
+        invert: invertInput.checked
+      });
+      label = 'Image';
+    } else {
+      if (!currentSVGText) throw new Error('Chargez d\'abord un SVG.');
+      shapes = buildShapesFromSVG(currentSVGText);
+      label = 'SVG';
+    }
+
+    const geo = new THREE.ExtrudeGeometry(shapes, { depth: height, bevelEnabled: false, steps: 1, curveSegments: 12 });
+    normalizeGeometry(geo, targetWidth);
+    geo.computeVertexNormals();
+    const mesh = new THREE.Mesh(geo, createItemMaterial());
+    mesh.position.set(nextPlacementOffset(), 0, currentZOffset());
+    pushUndo();
+    addItem(mesh, currentKind, label);
+    refreshScene();
+    exportBtn.disabled = false;
+    setStatus(`${label} ajouté${label === 'Image' ? 'e' : ''} à la scène — glissez-la pour la positionner.`, 'ok');
+    frameCameraOnScene();
+  } catch(err){
+    setStatus('Erreur : ' + err.message, 'error');
+    console.error(err);
+  }
+}
+
+function handleAddText(){
+  try{
+    const textHeightMM = parseFloat(textHeightInput.value);
+    const height = parseFloat(textExtrudeHeightInput.value);
+    if (!(textHeightMM > 0)) throw new Error('La hauteur des caractères doit être supérieure à 0.');
+    if (!(height > 0)) throw new Error('La hauteur d\'extrusion doit être supérieure à 0.');
+    const sizePx = parseInt(textResolutionInput.value, 10);
+
+    const charMeshes = buildTextMeshes({
+      text: textInput.value,
+      fontFamily: fontFamilyInput.value,
+      bold: textBoldInput.checked,
+      italic: textItalicInput.checked,
+      // Slider is relative to font size (em), not raw px, so the same
+      // setting overlaps letters by the same visual amount regardless of
+      // the render quality (sizePx) chosen above.
+      spacingFraction: parseFloat(letterSpacingInput.value),
+      sizePx,
+      simplify: parseFloat(textSimplifyInput.value),
+      scale: textHeightMM / sizePx,
+      extrudeHeight: height
+    });
+
+    const dx = nextPlacementOffset();
+    const z = currentZOffset();
+    pushUndo(); // one undo step for the whole text block, not per character
+    for (const mesh of charMeshes){
+      mesh.position.x += dx;
+      mesh.position.z = z;
+      addItem(mesh, 'text', mesh.userData.charLabel);
+    }
+    refreshScene();
+    exportBtn.disabled = false;
+    setStatus(`${charMeshes.length} caractère(s) ajoutés à la scène — glissez-en un le long du texte pour l'ajuster.`, 'ok');
+    frameCameraOnScene();
+  } catch(err){
+    setStatus('Erreur : ' + err.message, 'error');
+    console.error(err);
+  }
+}
+
+function handleAddShape(){
+  try{
+    const type = shapeTypeInput.value;
+    const s1 = parseFloat(shapeSize1Input.value);
+    const s2 = parseFloat(shapeSize2Input.value);
+    if (!(s1 > 0)) throw new Error('La taille doit être supérieure à 0.');
+
+    let geo, label;
+    if (type === 'cube'){
+      if (!(s2 > 0)) throw new Error('La hauteur doit être supérieure à 0.');
+      geo = new THREE.BoxGeometry(s1, s1, s2);
+      geo.translate(0, 0, s2/2); // sit on the bed instead of straddling z=0
+      label = 'Cube';
+    } else if (type === 'sphere'){
+      geo = new THREE.SphereGeometry(s1/2, 32, 24);
+      geo.translate(0, 0, s1/2);
+      label = 'Sphère';
+    } else if (type === 'cylinder'){
+      if (!(s2 > 0)) throw new Error('La hauteur doit être supérieure à 0.');
+      geo = new THREE.CylinderGeometry(s1/2, s1/2, s2, 40);
+      geo.rotateX(Math.PI/2); // CylinderGeometry's axis defaults to Y; this app uses Z as "up"
+      geo.translate(0, 0, s2/2);
+      label = 'Cylindre';
+    } else { // torus / ring — already lies flat in the XY plane by default
+      if (!(s2 > 0) || s2 >= s1) throw new Error('L\'épaisseur du tube doit être inférieure au diamètre extérieur.');
+      const tubeR = s2/2;
+      const ringR = s1/2 - tubeR;
+      geo = new THREE.TorusGeometry(ringR, tubeR, 20, 48);
+      geo.translate(0, 0, tubeR);
+      label = 'Anneau';
+    }
+    geo.computeVertexNormals();
+    const mesh = new THREE.Mesh(geo, createItemMaterial());
+    mesh.position.set(nextPlacementOffset(), 0, currentZOffset());
+    pushUndo();
+    addItem(mesh, type, label);
+    refreshScene();
+    exportBtn.disabled = false;
+    setStatus(`${label} ajouté${label === 'Sphère' || label === 'Anneau' ? 'e' : ''} à la scène.`, 'ok');
+    frameCameraOnScene();
+  } catch(err){
+    setStatus('Erreur : ' + err.message, 'error');
+    console.error(err);
+  }
+}
+
+addImageBtn.addEventListener('click', handleAddImage);
+addTextBtn.addEventListener('click', handleAddText);
+addShapeBtn.addEventListener('click', handleAddShape);
+
+/* ================================================================
+   THREE.JS SCENE
+   ================================================================ */
+const holder = $('canvas-holder');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b2237);
+
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 5000);
+camera.up.set(0, 0, 1);
+camera.position.set(140, -180, 150);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+holder.appendChild(renderer.domElement);
+renderer.domElement.style.touchAction = 'none'; // dragging an item shouldn't also scroll the page on touch
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.target.set(0, 0, 10);
+
+// The base plate is not a selectable/colorable item, so it keeps one fixed
+// shared material for its whole lifetime — never disposed, same as every
+// item's material used to be before per-object color existed.
+const baseMaterial = new THREE.MeshStandardMaterial({ color: 0xd7dfe6, roughness: 0.55, metalness: 0.04 });
+
+/* ---------- gizmo: resize handles + nudge arrows + delete marker + rotate ring ---------- */
+const GIZMO_MARGIN = 6; // mm gap between the object's edge and its arrows
+const gizmoGroup = new THREE.Group();
+gizmoGroup.visible = false;
+scene.add(gizmoGroup);
+
+// Discrete, single-axis nudges keep alignments precise in a way free
+// dragging can't — each arrow moves the selection by exactly one step.
+const gizmoMaterial = new THREE.MeshStandardMaterial({ color: 0xff8a4c, roughness: 0.4, metalness: 0.1 });
+function makeArrow(rotationZ){
+  const geo = new THREE.ConeGeometry(3, 9, 16);
+  geo.rotateZ(rotationZ); // cones default to pointing +Y; rotate flat into the bed plane
+  const mesh = new THREE.Mesh(geo, gizmoMaterial);
+  gizmoGroup.add(mesh);
+  return mesh;
+}
+const arrowRight = makeArrow(-Math.PI / 2); // +X
+const arrowLeft  = makeArrow(Math.PI / 2);  // -X
+const arrowFwd   = makeArrow(0);            // +Y
+const arrowBack  = makeArrow(Math.PI);      // -Y
+const gizmoArrows = [arrowRight, arrowLeft, arrowFwd, arrowBack];
+
+// Delete marker: a red "×" floating above the selection — clicking it removes
+// the object, the same click-to-select-then-click-to-act pattern as the arrows.
+const deleteMaterial = new THREE.MeshStandardMaterial({ color: 0xff6b6b, roughness: 0.4, metalness: 0.1 });
+function makeDeleteMarker(){
+  const bar1 = new THREE.BoxGeometry(9, 2.2, 2.2);
+  bar1.rotateZ(Math.PI / 4);
+  const bar2 = new THREE.BoxGeometry(9, 2.2, 2.2);
+  bar2.rotateZ(-Math.PI / 4);
+  const mesh = new THREE.Mesh(mergeGeometries([bar1, bar2]), deleteMaterial);
+  gizmoGroup.add(mesh);
+  return mesh;
+}
+const deleteMarker = makeDeleteMarker();
+const gizmoClickables = [...gizmoArrows, deleteMarker]; // instant single-click actions (as opposed to the ring, which is drag-based)
+
+// Rotation ring: a flat annulus around the selection; dragging it spins the
+// selection around Z. RingGeometry already lies flat in the XY plane by
+// default, so — unlike the arrows — it needs no rotate-to-lie-flat step.
+const rotateMaterial = new THREE.MeshStandardMaterial({ color: 0xb08cff, roughness: 0.4, metalness: 0.1, side: THREE.DoubleSide });
+const rotationRing = new THREE.Mesh(new THREE.RingGeometry(0.85, 1, 48), rotateMaterial);
+gizmoGroup.add(rotationRing);
+
+// Resize handles: small cubes at the 4 XY corners (proportional footprint
+// resize, anchored at the OPPOSITE corner) plus one on top (height only,
+// anchored at the bottom). Only shown for a single, UNROTATED selection —
+// dragging them against a rotated object's own tilted axes would need a
+// fair bit more math for comparatively little benefit here.
+const resizeMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, metalness: 0.1 });
+function makeResizeHandle(){
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(4, 4, 4), resizeMaterial);
+  mesh.visible = false;
+  gizmoGroup.add(mesh);
+  return mesh;
+}
+const resizeCornerNN = makeResizeHandle(); // -X,-Y corner (drag anchors the +X,+Y corner)
+const resizeCornerNP = makeResizeHandle(); // -X,+Y
+const resizeCornerPN = makeResizeHandle(); // +X,-Y
+const resizeCornerPP = makeResizeHandle(); // +X,+Y
+const resizeTop = makeResizeHandle();      // height only, anchored at the bottom
+const resizeHandles = [resizeCornerNN, resizeCornerNP, resizeCornerPN, resizeCornerPP, resizeTop];
+
+// box: THREE.Box3 covering everything currently selected. z: reference height
+// for the arrows (an average across the selection when there's more than one).
+function positionGizmo(box, z){
+  const center = new THREE.Vector3(); box.getCenter(center);
+  const liftZ = z + 0.5; // small lift so arrows don't bury themselves in the object
+  arrowRight.position.set(box.max.x + GIZMO_MARGIN, center.y, liftZ);
+  arrowLeft.position.set(box.min.x - GIZMO_MARGIN, center.y, liftZ);
+  arrowFwd.position.set(center.x, box.max.y + GIZMO_MARGIN, liftZ);
+  arrowBack.position.set(center.x, box.min.y - GIZMO_MARGIN, liftZ);
+  deleteMarker.position.set(center.x, center.y, box.max.z + 6);
+
+  const size = new THREE.Vector3(); box.getSize(size);
+  const radius = Math.max(Math.hypot(size.x, size.y) / 2 + 10, 15);
+  rotationRing.position.set(center.x, center.y, liftZ);
+  rotationRing.scale.set(radius, radius, 1);
+}
+
+// Only meaningful for exactly one, unrotated object — resizing a multi- or
+// rotated selection would need per-object or oriented-box math this app
+// doesn't attempt.
+function updateResizeHandlesForSelection(){
+  const eligible = selectedMeshes.size === 1 && Math.abs(firstOf(selectedMeshes).rotation.z) < 1e-6;
+  for (const h of resizeHandles) h.visible = eligible;
+  if (!eligible) return;
+  const mesh = firstOf(selectedMeshes);
+  const box = new THREE.Box3().setFromObject(mesh);
+  const midZ = (box.min.z + box.max.z) / 2;
+  resizeCornerNN.position.set(box.min.x, box.min.y, midZ);
+  resizeCornerNP.position.set(box.min.x, box.max.y, midZ);
+  resizeCornerPN.position.set(box.max.x, box.min.y, midZ);
+  resizeCornerPP.position.set(box.max.x, box.max.y, midZ);
+  resizeTop.position.set((box.min.x + box.max.x) / 2, (box.min.y + box.max.y) / 2, box.max.z);
+}
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+const dir1 = new THREE.DirectionalLight(0xffffff, 0.9);
+dir1.position.set(120, -80, 220);
+scene.add(dir1);
+const dir2 = new THREE.DirectionalLight(0x6fe3d6, 0.25);
+dir2.position.set(-150, 100, 60);
+scene.add(dir2);
+
+// print bed — rebuildable so its size can change live from the sidebar fields.
+// Built directly in the XY plane (Z up) with real X/Y coordinates, rather
+// than GridHelper's default XZ orientation + rotate hack, so it can also be
+// a non-square rectangle (most printers aren't square beds).
+const gridLineMaterial = new THREE.LineBasicMaterial({ color: 0x1a4a6b });
+const bedEdgeMaterial = new THREE.LineBasicMaterial({ color: 0x6fe3d6, opacity: 0.5, transparent: true });
+let gridLines = null;
+let bedEdges = null;
+
+function buildGridLineGeometry(width, depth, spacing){
+  const points = [];
+  const halfW = width / 2, halfD = depth / 2;
+  for (let x = -halfW; x <= halfW + 1e-6; x += spacing) points.push(x, -halfD, 0, x, halfD, 0);
+  for (let y = -halfD; y <= halfD + 1e-6; y += spacing) points.push(-halfW, y, 0, halfW, y, 0);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+  return geo;
+}
+
+function rebuildBed(){
+  if (gridLines){ scene.remove(gridLines); gridLines.geometry.dispose(); }
+  if (bedEdges){ scene.remove(bedEdges); bedEdges.geometry.dispose(); }
+
+  const w = parseFloat(bedWidthInput.value) || 220;
+  const d = parseFloat(bedDepthInput.value) || 220;
+
+  gridLines = new THREE.LineSegments(buildGridLineGeometry(w, d, 10), gridLineMaterial);
+  scene.add(gridLines);
+  bedEdges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(w, d)), bedEdgeMaterial);
+  scene.add(bedEdges);
+
+  hudBed.textContent = `${w}×${d} mm`;
+  updateHud(); // bed size changed: object footprints may now be in/out of bounds
+}
+rebuildBed();
+
+/* ---------- selection (multi-select via Shift+click) + drag + rotate + resize ---------- */
+let selectedMeshes = new Set();
+let selectionHelpers = new Map(); // mesh -> BoxHelper
+let dragState = null;   // { plane, grabbed: [{ mesh, offsetX, offsetY }] }
+let rotateState = null; // { plane, center, startAngle, items: [{ mesh, startPos, startRotZ }] }
+let resizeState = null; // { mesh, mode, originalGeometry, originalPosition, ... } — see startResize
+let lastPointerEvent = null; // hover-cursor raycast is throttled to once per rendered frame, not once per raw event
+const raycaster = new THREE.Raycaster();
+const pointerNDC = new THREE.Vector2();
+
+function getSelectableMeshes(){
+  // Every sceneItems entry IS a selectable mesh (addItem always sets both in
+  // lockstep, and only the base plate is ever added to printGroup without
+  // going through addItem) — deriving straight from sceneItems is both
+  // cheaper and clearer than filtering printGroup's children by userData.
+  return sceneItems.map(it => it.mesh);
+}
+function toNDC(event){
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointerNDC.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  pointerNDC.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  return pointerNDC;
+}
+function applySnap(v){
+  const step = parseFloat(gridSnapInput.value);
+  return step ? Math.round(v / step) * step : v;
+}
+function applyAngleSnap(deltaRad){
+  const stepDeg = parseFloat(rotationSnapInput.value);
+  if (!stepDeg) return deltaRad;
+  const stepRad = stepDeg * Math.PI / 180;
+  return Math.round(deltaRad / stepRad) * stepRad;
+}
+// Grabs one element out of a Set without spreading the whole thing into an
+// array first — used everywhere a "single object selected" code path needs
+// that one mesh.
+function firstOf(set){
+  return set.values().next().value;
+}
+
+function addSelectionHelper(mesh){
+  const helper = new THREE.BoxHelper(mesh, 0x6fe3d6);
+  scene.add(helper);
+  selectionHelpers.set(mesh, helper);
+}
+function removeSelectionHelper(mesh){
+  const helper = selectionHelpers.get(mesh);
+  if (helper){ scene.remove(helper); selectionHelpers.delete(mesh); }
+}
+function clearSelectionHelpers(){
+  for (const helper of selectionHelpers.values()) scene.remove(helper);
+  selectionHelpers.clear();
+}
+
+// The X/Y/rotation numeric fields (and the color swatch) only make sense
+// for a single, unambiguous object, so they're only shown/synced when
+// exactly one item is selected.
+function syncNumericFields(){
+  if (selectedMeshes.size !== 1){ objectTransformFields.style.display = 'none'; return; }
+  objectTransformFields.style.display = 'block';
+  const mesh = firstOf(selectedMeshes);
+  objPosXInput.value = mesh.position.x.toFixed(2);
+  objPosYInput.value = mesh.position.y.toFixed(2);
+  objRotationInput.value = (mesh.rotation.z * 180 / Math.PI).toFixed(1);
+}
+function applyNumericFields(){
+  if (selectedMeshes.size !== 1) return;
+  pushUndo();
+  const mesh = firstOf(selectedMeshes);
+  mesh.position.x = parseFloat(objPosXInput.value) || 0;
+  mesh.position.y = parseFloat(objPosYInput.value) || 0;
+  mesh.rotation.z = (parseFloat(objRotationInput.value) || 0) * Math.PI / 180;
+  const helper = selectionHelpers.get(mesh);
+  if (helper) helper.update();
+  updateGizmoForSelection();
+  updateHud();
+}
+objPosXInput.addEventListener('change', applyNumericFields);
+objPosYInput.addEventListener('change', applyNumericFields);
+objRotationInput.addEventListener('change', applyNumericFields);
+
+// Applies live while the native color picker is open (fires 'input'
+// repeatedly), but only records ONE undo step for the whole picking
+// session — not one per intermediate color the user drags across.
+let colorUndoPushed = false;
+objectColorInput.addEventListener('input', () => {
+  if (selectedMeshes.size === 0) return;
+  if (!colorUndoPushed){ pushUndo(); colorUndoPushed = true; }
+  const colorInt = parseInt(objectColorInput.value.replace('#', ''), 16);
+  for (const mesh of selectedMeshes) mesh.material.color.setHex(colorInt);
+});
+objectColorInput.addEventListener('change', () => { colorUndoPushed = false; });
+
+function afterSelectionChange(){
+  const has = selectedMeshes.size > 0;
+  const hasPair = selectedMeshes.size >= 2;
+  const hasTriple = selectedMeshes.size >= 3;
+  let hasGroup = false;
+  for (const m of selectedMeshes) if (m.userData.groupId){ hasGroup = true; break; }
+  deleteSelectedBtn.disabled = !has;
+  duplicateBtn.disabled = !has;
+  mirrorHBtn.disabled = !has;
+  mirrorVBtn.disabled = !has;
+  dropToBedBtn.disabled = !has;
+  groupBtn.disabled = !hasPair;
+  ungroupBtn.disabled = !hasGroup;
+  mergeBtn.disabled = !hasPair;
+  holeToggleBtn.disabled = !has;
+  holeToggleBtn.textContent = has && allSelectedAreHoles() ? '🕳️ Retirer le marquage trou' : '🕳️ Marquer comme trou';
+  for (const btn of [alignLeftBtn, alignCenterXBtn, alignRightBtn, alignBottomBtn, alignCenterYBtn, alignTopBtn]) btn.disabled = !hasPair;
+  distributeXBtn.disabled = !hasTriple;
+  distributeYBtn.disabled = !hasTriple;
+  objectColorInput.disabled = !has;
+  if (has) objectColorInput.value = '#' + firstOf(selectedMeshes).material.color.getHexString();
+  syncNumericFields();
+  // A selection change invalidates any in-progress rename.
+  hudRenameInput.style.display = 'none';
+  hudSelectionEl.style.display = '';
+  if (!has){
+    gizmoGroup.visible = false;
+    for (const h of resizeHandles) h.visible = false;
+    hudSelectionEl.textContent = '—';
+    return;
+  }
+  updateGizmoForSelection();
+  gizmoGroup.visible = true;
+  const labels = [...selectedMeshes].map(m => m.userData.label);
+  hudSelectionEl.textContent = labels.length > 3 ? `${labels.length} objets` : labels.join(', ');
+}
+
+// A grouped mesh always brings the rest of its group along — this is the
+// one hook point that makes grouping "stick" through every existing
+// selection-driven action (drag, rotate, nudge, delete, mirror, align...)
+// without duplicating any of that logic.
+function expandToGroup(mesh){
+  const gid = mesh.userData.groupId;
+  if (!gid) return [mesh];
+  const group = [];
+  for (const it of sceneItems) if (it.mesh.userData.groupId === gid) group.push(it.mesh);
+  return group;
+}
+
+function selectOnly(mesh){
+  clearSelectionHelpers();
+  const group = expandToGroup(mesh);
+  selectedMeshes = new Set(group);
+  for (const m of group) addSelectionHelper(m);
+  afterSelectionChange();
+}
+function toggleSelection(mesh){
+  const group = expandToGroup(mesh);
+  const allIn = group.every(m => selectedMeshes.has(m));
+  for (const m of group){
+    if (allIn){ selectedMeshes.delete(m); removeSelectionHelper(m); }
+    else if (!selectedMeshes.has(m)){ selectedMeshes.add(m); addSelectionHelper(m); }
+  }
+  afterSelectionChange();
+}
+function deselectAll(){
+  clearSelectionHelpers();
+  selectedMeshes.clear();
+  afterSelectionChange();
+}
+
+function groupSelected(){
+  if (selectedMeshes.size < 2) return;
+  pushUndo();
+  const gid = 'g' + (nextGroupId++);
+  for (const mesh of selectedMeshes) mesh.userData.groupId = gid;
+  afterSelectionChange();
+  setStatus(`${selectedMeshes.size} objets groupés.`, 'ok');
+}
+function ungroupSelected(){
+  const gids = new Set([...selectedMeshes].map(m => m.userData.groupId).filter(Boolean));
+  if (gids.size === 0) return;
+  pushUndo();
+  for (const item of sceneItems){
+    if (gids.has(item.mesh.userData.groupId)) item.mesh.userData.groupId = null;
+  }
+  afterSelectionChange();
+  setStatus('Groupe dissous.', 'ok');
+}
+groupBtn.addEventListener('click', groupSelected);
+ungroupBtn.addEventListener('click', ungroupSelected);
+
+/* ================================================================
+   SOLIDES / TROUS + FUSION BOOLÉENNE (CSG, via three-bvh-csg)
+   ================================================================ */
+
+// A "hole" is just a normal mesh flagged in userData and drawn as a
+// translucent ghost with a dashed outline — it only becomes meaningful
+// when merged: solids are unioned together, holes are unioned together,
+// then holes are subtracted from solids.
+function updateHoleVisual(mesh){
+  const old = mesh.children.find(c => c.userData.isHoleOverlay);
+  if (old){ mesh.remove(old); old.geometry.dispose(); old.material.dispose(); }
+  if (!mesh.userData.isHole){
+    mesh.material.transparent = false;
+    mesh.material.opacity = 1;
+    return;
+  }
+  mesh.material.transparent = true;
+  mesh.material.opacity = 0.35;
+  const edges = new THREE.LineSegments(
+    new THREE.EdgesGeometry(mesh.geometry),
+    new THREE.LineDashedMaterial({ color: 0xffffff, dashSize: 2, gapSize: 1.5 })
+  );
+  edges.computeLineDistances(); // required, otherwise LineDashedMaterial renders as a solid line
+  edges.userData.isHoleOverlay = true;
+  mesh.add(edges);
+}
+
+// True only when EVERY selected item is already marked as a hole (and
+// something is selected) — shared by the toggle itself and by the button's
+// label, so neither has to spread the Set into an array just to ask this.
+function allSelectedAreHoles(){
+  if (selectedMeshes.size === 0) return false;
+  for (const m of selectedMeshes) if (!m.userData.isHole) return false;
+  return true;
+}
+
+function toggleHoleForSelection(){
+  if (selectedMeshes.size === 0) return;
+  pushUndo();
+  // Mixed selection -> mark everything as a hole; all already holes -> clear
+  // them all. Keeps the toggle predictable regardless of what's selected.
+  const allHoles = allSelectedAreHoles();
+  for (const mesh of selectedMeshes){
+    mesh.userData.isHole = !allHoles;
+    updateHoleVisual(mesh);
+  }
+  afterSelectionChange();
+  setStatus(allHoles ? 'Marquage « trou » retiré.' : 'Marqué comme trou.', 'ok');
+}
+holeToggleBtn.addEventListener('click', toggleHoleForSelection);
+
+function meshToBrush(mesh){
+  const brush = new Brush(mesh.geometry.clone());
+  brush.position.copy(mesh.position);
+  brush.rotation.copy(mesh.rotation);
+  brush.updateMatrixWorld(true);
+  return brush;
+}
+// three-bvh-csg returns each result with an identity transform and the
+// world placement already baked into its geometry, so a running result can
+// be fed straight back in as the next operation's first brush.
+function csgUnionAll(meshes, evaluator){
+  let result = meshToBrush(meshes[0]);
+  for (let i = 1; i < meshes.length; i++){
+    result = evaluator.evaluate(result, meshToBrush(meshes[i]), ADDITION);
+    result.updateMatrixWorld(true);
+  }
+  return result;
+}
+
+// Solids only -> union into one volume. Solids + holes -> (union of solids)
+// minus (union of holes). The result replaces every selected input with a
+// single ordinary item.
+function mergeSelected(){
+  if (selectedMeshes.size < 2) return;
+  setStatus('Fusion en cours…');
+  // Deferred one frame so the status text actually paints before the
+  // (synchronous, potentially slow) CSG evaluation blocks the main thread.
+  requestAnimationFrame(() => {
+    try {
+      const meshes = [...selectedMeshes];
+      const solids = meshes.filter(m => !m.userData.isHole);
+      const holes = meshes.filter(m => m.userData.isHole);
+      if (solids.length === 0) throw new Error('il faut au moins un solide (non marqué « trou »).');
+
+      const evaluator = new Evaluator();
+      let resultBrush = csgUnionAll(solids, evaluator);
+      if (holes.length > 0){
+        const holeBrush = csgUnionAll(holes, evaluator);
+        resultBrush = evaluator.evaluate(resultBrush, holeBrush, SUBTRACTION);
+        resultBrush.updateMatrixWorld(true);
+      }
+
+      const geo = resultBrush.geometry;
+      geo.clearGroups();             // per-input material groups: we only ever use one material
+      geo.setDrawRange(0, Infinity); // CSG results rely on drawRange, which breaks three.js exporters
+      geo.computeVertexNormals();
+      geo.computeBoundingBox();
+      const center = new THREE.Vector3();
+      geo.boundingBox.getCenter(center);
+      geo.translate(-center.x, -center.y, -center.z); // re-center so drag/rotate/numeric fields behave like any other item
+
+      pushUndo();
+      const resultMesh = new THREE.Mesh(geo, solids[0].material.clone());
+      resultMesh.position.copy(center);
+
+      for (const mesh of meshes){
+        printGroup.remove(mesh);
+        disposeItemMesh(mesh);
+      }
+      const gone = new Set(meshes);
+      sceneItems = sceneItems.filter(it => !gone.has(it.mesh));
+      deselectAll();
+      addItem(resultMesh, 'fusion', holes.length > 0 ? 'Fusion (trou)' : 'Fusion');
+      selectOnly(resultMesh);
+      refreshScene();
+      exportBtn.disabled = false;
+      setStatus(`${meshes.length} objets fusionnés en un seul volume.`, 'ok');
+    } catch(err){
+      setStatus('Erreur lors de la fusion : ' + err.message, 'error');
+      console.error(err);
+    }
+  });
+}
+mergeBtn.addEventListener('click', mergeSelected);
+
+// Rename via double-click on the HUD's selection label — only makes sense
+// for exactly one object (a multi-selection's label is already a joined
+// list or a count, not a single name to edit).
+hudSelectionEl.addEventListener('dblclick', () => {
+  if (selectedMeshes.size !== 1) return;
+  const mesh = firstOf(selectedMeshes);
+  hudRenameInput.value = mesh.userData.label;
+  hudSelectionEl.style.display = 'none';
+  hudRenameInput.style.display = 'inline-block';
+  hudRenameInput.focus();
+  hudRenameInput.select();
+});
+function commitRename(){
+  if (hudRenameInput.style.display === 'none') return;
+  if (selectedMeshes.size === 1){
+    const mesh = firstOf(selectedMeshes);
+    const newLabel = hudRenameInput.value.trim();
+    if (newLabel && newLabel !== mesh.userData.label){
+      pushUndo();
+      mesh.userData.label = newLabel;
+    }
+  }
+  hudRenameInput.style.display = 'none';
+  hudSelectionEl.style.display = '';
+  afterSelectionChange();
+}
+hudRenameInput.addEventListener('blur', commitRename);
+hudRenameInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter'){ commitRename(); event.preventDefault(); }
+  else if (event.key === 'Escape'){ hudRenameInput.style.display = 'none'; hudSelectionEl.style.display = ''; }
+});
+
+// Positions the arrow/delete/rotate gizmo (and the resize handles, single
+// unrotated selections only) around the bounding box of the WHOLE
+// selection, so nudging, deleting or rotating acts on every selected item
+// together.
+function updateGizmoForSelection(){
+  if (selectedMeshes.size === 0) return;
+  const box = new THREE.Box3();
+  let zSum = 0;
+  for (const mesh of selectedMeshes){ box.expandByObject(mesh); zSum += mesh.position.z; }
+  positionGizmo(box, zSum / selectedMeshes.size);
+  updateResizeHandlesForSelection();
+}
+
+function nudgeSelected(dx, dy){
+  if (selectedMeshes.size === 0) return;
+  pushUndo();
+  const step = parseFloat(nudgeStepInput.value) || 1;
+  for (const mesh of selectedMeshes){
+    mesh.position.x += dx * step;
+    mesh.position.y += dy * step;
+  }
+  for (const helper of selectionHelpers.values()) helper.update();
+  updateGizmoForSelection();
+  syncNumericFields();
+  updateHud();
+}
+
+// Rotating the whole selection together orbits each item around the
+// selection's shared center (not just spinning it in place), which is the
+// standard "group rotate" behavior — for a single selected object the two
+// are the same thing anyway.
+function startRotate(event){
+  const box = new THREE.Box3();
+  for (const mesh of selectedMeshes) box.expandByObject(mesh);
+  const center = new THREE.Vector3(); box.getCenter(center);
+  const z = firstOf(selectedMeshes).position.z;
+  const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -z);
+  raycaster.setFromCamera(toNDC(event), camera);
+  const pt = new THREE.Vector3();
+  raycaster.ray.intersectPlane(plane, pt);
+  const startAngle = Math.atan2(pt.y - center.y, pt.x - center.x);
+  rotateState = {
+    plane, center, startAngle,
+    items: [...selectedMeshes].map(mesh => ({ mesh, startPos: mesh.position.clone(), startRotZ: mesh.rotation.z }))
+  };
+}
+
+// Rebuilds the mesh's geometry from an untouched original clone every time
+// (rather than compounding scale calls on live vertex data), then — for an
+// XY corner resize — repositions the mesh so the chosen anchor corner
+// stays exactly where it was. A Z (height) resize needs no repositioning at
+// all: every shape in this app already has its geometry's bottom sitting at
+// local Z=0, so scaling Z about the local origin keeps the bottom fixed
+// automatically.
+function applyResizeScale(sx, sy, sz){
+  const s = resizeState;
+  const mesh = s.mesh;
+  const geo = s.originalGeometry.clone();
+  geo.scale(sx, sy, sz);
+  geo.computeVertexNormals();
+  mesh.geometry.dispose();
+  mesh.geometry = geo;
+  if (s.mode === 'xy'){
+    mesh.position.x = s.originalPosition.x + s.localAnchorX * (1 - sx);
+    mesh.position.y = s.originalPosition.y + s.localAnchorY * (1 - sy);
+  }
+}
+
+function startResize(handle, mesh, event){
+  const box = new THREE.Box3().setFromObject(mesh);
+  const originalGeometry = mesh.geometry.clone();
+  const originalPosition = mesh.position.clone();
+  if (handle === resizeTop){
+    resizeState = {
+      mesh, originalGeometry, originalPosition, mode: 'z',
+      originalHeight: Math.max(0.01, box.max.z - box.min.z),
+      startScreenY: event.clientY
+    };
+  } else {
+    let anchorX, anchorY;
+    if (handle === resizeCornerNN){ anchorX = box.max.x; anchorY = box.max.y; }
+    else if (handle === resizeCornerNP){ anchorX = box.max.x; anchorY = box.min.y; }
+    else if (handle === resizeCornerPN){ anchorX = box.min.x; anchorY = box.max.y; }
+    else { anchorX = box.min.x; anchorY = box.min.y; } // PP
+    resizeState = {
+      mesh, originalGeometry, originalPosition, mode: 'xy',
+      localAnchorX: anchorX - originalPosition.x,
+      localAnchorY: anchorY - originalPosition.y,
+      anchorX, anchorY,
+      originalWidth: Math.max(0.01, box.max.x - box.min.x),
+      originalDepth: Math.max(0.01, box.max.y - box.min.y)
+    };
+  }
+}
+
+renderer.domElement.addEventListener('pointerdown', (event) => {
+  if (event.button !== 0) return; // left click / primary touch only
+
+  if (rulerMode){ handleRulerClick(event); event.preventDefault(); return; }
+
+  if (gizmoGroup.visible){
+    raycaster.setFromCamera(toNDC(event), camera);
+
+    const visibleResizeHandles = resizeHandles.filter(h => h.visible);
+    const resizeHit = visibleResizeHandles.length ? raycaster.intersectObjects(visibleResizeHandles, false)[0] : null;
+    if (resizeHit){
+      pushUndo();
+      startResize(resizeHit.object, firstOf(selectedMeshes), event);
+      controls.enabled = false;
+      renderer.domElement.style.cursor = resizeHit.object === resizeTop ? 'ns-resize' : 'nwse-resize';
+      event.preventDefault();
+      return;
+    }
+
+    if (raycaster.intersectObject(rotationRing, false).length){
+      pushUndo();
+      startRotate(event);
+      controls.enabled = false;
+      renderer.domElement.style.cursor = 'grabbing';
+      event.preventDefault();
+      return;
+    }
+
+    const gizmoHit = raycaster.intersectObjects(gizmoClickables, false)[0];
+    if (gizmoHit){
+      if (gizmoHit.object === deleteMarker) deleteSelected();
+      else if (gizmoHit.object === arrowRight) nudgeSelected(1, 0);
+      else if (gizmoHit.object === arrowLeft) nudgeSelected(-1, 0);
+      else if (gizmoHit.object === arrowFwd) nudgeSelected(0, 1);
+      else if (gizmoHit.object === arrowBack) nudgeSelected(0, -1);
+      event.preventDefault();
+      return;
+    }
+  }
+
+  const meshes = getSelectableMeshes();
+  if (meshes.length === 0) return;
+  raycaster.setFromCamera(toNDC(event), camera);
+  const hit = raycaster.intersectObjects(meshes, false)[0];
+
+  if (!hit){
+    if (!event.shiftKey) deselectAll(); // shift+click on empty space leaves the selection alone
+    return;
+  }
+
+  if (event.shiftKey){
+    toggleSelection(hit.object); // add/remove from selection; drag starts on a later plain click
+    event.preventDefault();
+    return;
+  }
+
+  // A plain click on an object already part of a multi-selection keeps that
+  // whole selection (so it can be dragged as a group); otherwise it replaces
+  // the selection with just this one object.
+  if (!selectedMeshes.has(hit.object)) selectOnly(hit.object);
+
+  const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -hit.object.position.z);
+  pushUndo();
+  dragState = {
+    plane,
+    grabbed: [...selectedMeshes].map(mesh => ({
+      mesh,
+      offsetX: mesh.position.x - hit.point.x,
+      offsetY: mesh.position.y - hit.point.y
+    }))
+  };
+  controls.enabled = false;
+  renderer.domElement.style.cursor = 'grabbing';
+  event.preventDefault();
+});
+
+window.addEventListener('pointermove', (event) => {
+  lastPointerEvent = event;
+
+  if (resizeState){
+    raycaster.setFromCamera(toNDC(event), camera);
+    if (resizeState.mode === 'z'){
+      // Vertical drag has no natural ray/plane intersection (it's parallel
+      // to every horizontal plane) — approximate mm-per-pixel from the
+      // camera's current distance and vertical FOV instead.
+      const deltaScreenY = resizeState.startScreenY - event.clientY;
+      const distToTarget = camera.position.distanceTo(controls.target);
+      const mmPerPixel = (distToTarget * Math.tan((camera.fov * Math.PI / 180) / 2) * 2) / renderer.domElement.clientHeight;
+      const newHeight = Math.max(0.5, resizeState.originalHeight + deltaScreenY * mmPerPixel);
+      applyResizeScale(1, 1, newHeight / resizeState.originalHeight);
+    } else {
+      const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -resizeState.mesh.position.z);
+      const pt = new THREE.Vector3();
+      if (raycaster.ray.intersectPlane(plane, pt)){
+        const newWidth = Math.max(1, Math.abs(pt.x - resizeState.anchorX));
+        const newDepth = Math.max(1, Math.abs(pt.y - resizeState.anchorY));
+        applyResizeScale(newWidth / resizeState.originalWidth, newDepth / resizeState.originalDepth, 1);
+      }
+    }
+    const helper = selectionHelpers.get(resizeState.mesh);
+    if (helper) helper.update();
+    updateGizmoForSelection();
+    syncNumericFields();
+    return;
+  }
+
+  if (rotateState){
+    raycaster.setFromCamera(toNDC(event), camera);
+    const pt = new THREE.Vector3();
+    if (raycaster.ray.intersectPlane(rotateState.plane, pt)){
+      const angle = Math.atan2(pt.y - rotateState.center.y, pt.x - rotateState.center.x);
+      const delta = applyAngleSnap(angle - rotateState.startAngle);
+      const cos = Math.cos(delta), sin = Math.sin(delta);
+      for (const item of rotateState.items){
+        const relX = item.startPos.x - rotateState.center.x;
+        const relY = item.startPos.y - rotateState.center.y;
+        item.mesh.position.x = rotateState.center.x + relX * cos - relY * sin;
+        item.mesh.position.y = rotateState.center.y + relX * sin + relY * cos;
+        item.mesh.rotation.z = item.startRotZ + delta;
+      }
+      for (const helper of selectionHelpers.values()) helper.update();
+      updateGizmoForSelection();
+      syncNumericFields();
+    }
+    return;
+  }
+
+  if (!dragState) return;
+  raycaster.setFromCamera(toNDC(event), camera);
+  const pt = new THREE.Vector3();
+  if (raycaster.ray.intersectPlane(dragState.plane, pt)){
+    const sx = applySnap(pt.x), sy = applySnap(pt.y);
+    for (const g of dragState.grabbed){
+      g.mesh.position.x = sx + g.offsetX;
+      g.mesh.position.y = sy + g.offsetY;
+    }
+    for (const helper of selectionHelpers.values()) helper.update();
+    updateGizmoForSelection(); // arrows/ring track the selection while free-dragging too
+    syncNumericFields();
+  }
+});
+
+window.addEventListener('pointerup', () => {
+  if (!dragState && !rotateState && !resizeState) return;
+  if (resizeState){
+    resizeState.originalGeometry.dispose();
+    if (resizeState.mesh.userData.isHole) updateHoleVisual(resizeState.mesh); // overlay traced the pre-resize geometry
+  }
+  dragState = null;
+  rotateState = null;
+  resizeState = null;
+  controls.enabled = true;
+  renderer.domElement.style.cursor = 'auto';
+  updateHud();
+  syncNumericFields();
+});
+
+// Arrow keys nudge, Delete/Backspace removes, Ctrl/Cmd+D duplicates — but
+// never while the user is typing in the text field or any other form control.
+window.addEventListener('keydown', (event) => {
+  const tag = document.activeElement && document.activeElement.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+  const mod = event.ctrlKey || event.metaKey;
+  if (mod && event.key.toLowerCase() === 'z' && !event.shiftKey){ undo(); event.preventDefault(); return; }
+  if (mod && (event.key.toLowerCase() === 'y' || (event.key.toLowerCase() === 'z' && event.shiftKey))){ redo(); event.preventDefault(); return; }
+
+  if (mod && event.key.toLowerCase() === 'd'){
+    if (selectedMeshes.size > 0){ duplicateSelected(); event.preventDefault(); }
+    return;
+  }
+  if (selectedMeshes.size === 0) return;
+
+  const arrowMap = { ArrowRight: [1, 0], ArrowLeft: [-1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] };
+  if (arrowMap[event.key]){
+    nudgeSelected(...arrowMap[event.key]);
+    event.preventDefault();
+  } else if (event.key === 'Delete' || event.key === 'Backspace'){
+    deleteSelected();
+    event.preventDefault();
+  }
+});
+
+/* ---------- ruler tool: click two points to measure a distance ---------- */
+let rulerMode = false;
+let rulerPoints = [];
+let rulerLine = null;
+let rulerMarkers = [];
+const rulerMarkerMaterial = new THREE.MeshStandardMaterial({ color: 0x6fe3d6, roughness: 0.4 });
+const rulerLineMaterial = new THREE.LineBasicMaterial({ color: 0x6fe3d6 });
+
+function clearRulerMeasurement(){
+  rulerPoints = [];
+  if (rulerLine){ scene.remove(rulerLine); rulerLine.geometry.dispose(); rulerLine = null; }
+  for (const m of rulerMarkers){ scene.remove(m); m.geometry.dispose(); }
+  rulerMarkers = [];
+  rulerLabelEl.style.display = 'none';
+}
+
+function toggleRulerMode(){
+  rulerMode = !rulerMode;
+  rulerToolBtn.classList.toggle('active', rulerMode);
+  if (!rulerMode) clearRulerMeasurement();
+  else deselectAll(); // ruler and normal selection/drag are mutually exclusive modes
+}
+rulerToolBtn.addEventListener('click', toggleRulerMode);
+
+function handleRulerClick(event){
+  raycaster.setFromCamera(toNDC(event), camera);
+  const hit = raycaster.intersectObjects(getSelectableMeshes(), false)[0];
+  let point;
+  if (hit){
+    point = hit.point;
+  } else {
+    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -currentZOffset());
+    const pt = new THREE.Vector3();
+    if (!raycaster.ray.intersectPlane(plane, pt)) return;
+    point = pt;
+  }
+
+  if (rulerPoints.length === 2) clearRulerMeasurement(); // 3rd click starts a fresh measurement
+  rulerPoints.push(point.clone());
+  const marker = new THREE.Mesh(new THREE.SphereGeometry(1.5, 12, 8), rulerMarkerMaterial);
+  marker.position.copy(point);
+  scene.add(marker);
+  rulerMarkers.push(marker);
+
+  if (rulerPoints.length === 2){
+    const geo = new THREE.BufferGeometry().setFromPoints(rulerPoints);
+    rulerLine = new THREE.Line(geo, rulerLineMaterial);
+    scene.add(rulerLine);
+  }
+  updateRulerLabel();
+}
+
+function updateRulerLabel(){
+  if (rulerPoints.length !== 2){ rulerLabelEl.style.display = 'none'; return; }
+  const [p1, p2] = rulerPoints;
+  const dist = p1.distanceTo(p2);
+  const mid = p1.clone().add(p2).multiplyScalar(0.5);
+  const projected = mid.clone().project(camera);
+  const rect = renderer.domElement.getBoundingClientRect();
+  rulerLabelEl.style.left = ((projected.x * 0.5 + 0.5) * rect.width) + 'px';
+  rulerLabelEl.style.top = ((-projected.y * 0.5 + 0.5) * rect.height) + 'px';
+  rulerLabelEl.style.display = 'block';
+  rulerLabelEl.textContent = dist.toFixed(2) + ' mm';
+}
+
+// Flags any item whose XY footprint sticks out past the current bed
+// rectangle: a red outline around the offending object(s) plus a summary
+// line in the HUD. Re-run any time the scene or the bed size changes.
+function checkBedOverflow(){
+  for (const helper of overflowHelpers.values()) scene.remove(helper);
+  overflowHelpers.clear();
+
+  if (!printGroup || sceneItems.length === 0){ hudOverflowRowEl.style.display = 'none'; return; }
+
+  const halfW = (parseFloat(bedWidthInput.value) || 220) / 2;
+  const halfD = (parseFloat(bedDepthInput.value) || 220) / 2;
+  let count = 0;
+  for (const item of sceneItems){
+    const box = new THREE.Box3().setFromObject(item.mesh);
+    if (box.min.x < -halfW || box.max.x > halfW || box.min.y < -halfD || box.max.y > halfD){
+      count++;
+      const helper = new THREE.BoxHelper(item.mesh, 0xff6b6b);
+      scene.add(helper);
+      overflowHelpers.set(item.mesh, helper);
+    }
+  }
+  if (count > 0){
+    hudOverflowRowEl.style.display = 'block';
+    hudOverflowEl.textContent = count > 1 ? `${count} objets dépassent du plateau` : '1 objet dépasse du plateau';
+  } else {
+    hudOverflowRowEl.style.display = 'none';
+  }
+}
+
+// Binary STL: 80-byte header + 4-byte triangle count + 50 bytes/triangle
+// (12-byte normal + three 12-byte vertices + a 2-byte attribute count).
+function computeTriangleStats(){
+  let triangles = 0;
+  if (printGroup){
+    printGroup.traverse(obj => {
+      if (obj.isMesh && obj.geometry){
+        const geo = obj.geometry;
+        triangles += (geo.index ? geo.index.count : geo.attributes.position.count) / 3;
+      }
+    });
+  }
+  return { triangles, bytes: 84 + triangles * 50 };
+}
+function formatBytes(bytes){
+  if (bytes < 1024) return `${bytes} o`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} Ko`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} Mo`;
+}
+
+function updateHud(){
+  if (!printGroup){
+    hudPart.textContent = '—';
+    hudTriangles.textContent = '—';
+    hudStlSize.textContent = '—';
+    hudTriangles.style.color = '';
+    checkBedOverflow();
+    return;
+  }
+  const size = new THREE.Vector3();
+  new THREE.Box3().setFromObject(printGroup).getSize(size);
+  hudPart.textContent = `${size.x.toFixed(1)}×${size.y.toFixed(1)}×${size.z.toFixed(1)} mm`;
+
+  const stats = computeTriangleStats();
+  hudTriangles.textContent = stats.triangles.toLocaleString('fr-FR');
+  hudStlSize.textContent = formatBytes(stats.bytes);
+  hudTriangles.style.color = stats.triangles > 300000 ? '#ff6b6b' : ''; // flag an unusually heavy mesh
+  checkBedOverflow();
+}
+
+function resize(){
+  const w = holder.clientWidth, h = holder.clientHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+
+function animate(){
+  requestAnimationFrame(animate);
+  controls.update();
+  for (const helper of selectionHelpers.values()) helper.update();
+  for (const helper of overflowHelpers.values()) helper.update();
+  if (rulerPoints.length === 2) updateRulerLabel(); // screen position tracks the camera as it orbits
+
+  // Hover-cursor feedback: at most once per rendered frame, regardless of how
+  // often the raw pointermove event fires (can exceed 60/s on some hardware).
+  if (rulerMode){
+    renderer.domElement.style.cursor = 'crosshair';
+  } else if (!dragState && !rotateState && !resizeState && lastPointerEvent){
+    raycaster.setFromCamera(toNDC(lastPointerEvent), camera);
+    const visibleResizeHandles = resizeHandles.filter(h => h.visible);
+    if (visibleResizeHandles.length && raycaster.intersectObjects(visibleResizeHandles, false).length){
+      renderer.domElement.style.cursor = 'nwse-resize';
+    } else if (gizmoGroup.visible && raycaster.intersectObject(rotationRing, false).length){
+      renderer.domElement.style.cursor = 'grab';
+    } else if (gizmoGroup.visible && raycaster.intersectObjects(gizmoClickables, false).length){
+      renderer.domElement.style.cursor = 'pointer';
+    } else {
+      const meshes = getSelectableMeshes();
+      renderer.domElement.style.cursor = (meshes.length && raycaster.intersectObjects(meshes, false).length) ? 'grab' : 'auto';
+    }
+  }
+  renderer.render(scene, camera);
+}
+animate();
+
+function frameCamera(box){
+  const size = new THREE.Vector3();
+  const center = new THREE.Vector3();
+  box.getSize(size); box.getCenter(center);
+  const maxDim = Math.max(size.x, size.y, size.z, 10);
+  const dist = maxDim * 2.2;
+  camera.position.set(center.x + dist*0.55, center.y - dist*0.75, center.z + dist*0.6);
+  controls.target.copy(center);
+  controls.update();
+}
+
+// Frames on the current scene contents, or does nothing if the scene is
+// empty — every "Ajouter" handler wants exactly this, and calling
+// Box3().setFromObject(null) directly (printGroup can legitimately still be
+// null, e.g. every file in a multi-file drop failed) throws.
+function frameCameraOnScene(){
+  if (printGroup) frameCamera(new THREE.Box3().setFromObject(printGroup));
+}
+
+// Six canonical views plus an isometric corner — a simple button cluster
+// standing in for a full interactive 3D orientation cube, which would need
+// its own mini render pass, camera and hit-testing for comparatively little
+// extra benefit in a tool this size.
+function frameNamedView(dir){
+  const center = new THREE.Vector3();
+  let dist;
+  if (printGroup && sceneItems.length > 0){
+    const box = new THREE.Box3().setFromObject(printGroup);
+    const size = new THREE.Vector3(); box.getSize(size); box.getCenter(center);
+    dist = Math.max(size.x, size.y, size.z, 40) * 1.6;
+  } else {
+    dist = Math.max(parseFloat(bedWidthInput.value) || 220, parseFloat(bedDepthInput.value) || 220) * 0.9;
+  }
+  // top/bottom look straight along the camera's own up vector (Z here),
+  // which is a degenerate direction for OrbitControls' spherical-coordinate
+  // math. A tiny, visually-imperceptible offset keeps orbiting afterwards
+  // well-behaved; front/back/left/right don't need it since they look horizontally.
+  const eps = dist * 0.002;
+  const positions = {
+    front:  () => [center.x, center.y - dist, center.z],
+    back:   () => [center.x, center.y + dist, center.z],
+    left:   () => [center.x - dist, center.y, center.z],
+    right:  () => [center.x + dist, center.y, center.z],
+    top:    () => [center.x, center.y - eps, center.z + dist],
+    bottom: () => [center.x, center.y - eps, center.z - dist],
+    iso:    () => [center.x + dist*0.55, center.y - dist*0.75, center.z + dist*0.6]
+  };
+  const [x, y, z] = (positions[dir] || positions.iso)();
+  camera.position.set(x, y, z);
+  controls.target.copy(center);
+  controls.update();
+}
+document.querySelectorAll('#viewCube button').forEach(btn => {
+  btn.addEventListener('click', () => frameNamedView(btn.dataset.view));
+});
+
+/* ================================================================
+   STL EXPORT
+   ================================================================ */
+exportBtn.addEventListener('click', () => {
+  if (!printGroup || sceneItems.length === 0) return;
+  const unmergedHoles = sceneItems.filter(it => it.mesh.userData.isHole).length;
+  const exporter = new STLExporter();
+  const result = exporter.parse(printGroup, { binary: true });
+  const blob = new Blob([result], { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'modele.stl';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  setStatus(
+    unmergedHoles > 0
+      ? `STL téléchargé — ⚠ ${unmergedHoles} objet(s) encore marqué(s) « trou » ont été exportés comme des solides normaux (fusionnez-les d'abord pour qu'ils creusent réellement).`
+      : 'STL téléchargé.',
+    unmergedHoles > 0 ? 'error' : 'ok'
+  );
+});
+</script>
+</body>
+</html>
