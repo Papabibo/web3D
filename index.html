@@ -203,6 +203,13 @@
   .btn-row{display:flex; gap:8px; margin-bottom:10px;}
   .btn-row button{background:transparent;}
 
+  /* While a drag / rotate / resize gesture is in progress, nothing else may
+     move or edit the scene — a second finger on a sidebar button, a view
+     button or the ruler would otherwise fire a competing action mid-gesture. */
+  body.gesture-active #sidebar,
+  body.gesture-active #viewCube,
+  body.gesture-active #rulerToolBtn{ pointer-events:none; }
+
   #exportBtn{
     background: linear-gradient(180deg, #ff9a5f, var(--hot));
     color:#241000;
@@ -739,6 +746,10 @@ let nextGroupId = 1;  // groupId values are 'g1', 'g2', ... — persistent group
 let undoStack = [];   // each entry: a full snapshot of sceneItems (see snapshotScene())
 let redoStack = [];
 const MAX_UNDO = 50;  // caps memory: each entry clones every item's geometry
+// At most ONE pointer gesture (free drag, rotate or resize) can be in
+// progress at a time — { type, pointerId } — and while it is, every other
+// way of moving/editing the scene is locked out. See beginGesture().
+let activeGesture = null;
 
 /* ---------- file loading ---------- */
 dropzone.addEventListener('click', () => fileInput.click());
@@ -1405,7 +1416,7 @@ function pushUndo(){
 }
 
 function undo(){
-  if (undoStack.length === 0) return;
+  if (activeGesture || undoStack.length === 0) return;
   redoStack.push(snapshotScene());
   restoreSnapshot(undoStack.pop());
   updateUndoRedoButtons();
@@ -1413,7 +1424,7 @@ function undo(){
 }
 
 function redo(){
-  if (redoStack.length === 0) return;
+  if (activeGesture || redoStack.length === 0) return;
   undoStack.push(snapshotScene());
   restoreSnapshot(redoStack.pop());
   updateUndoRedoButtons();
@@ -1430,7 +1441,7 @@ redoBtn.addEventListener('click', redo);
 
 function deleteSelected(){
   const count = selectedMeshes.size;
-  if (count === 0) return;
+  if (activeGesture || count === 0) return;
   pushUndo();
   for (const mesh of selectedMeshes){
     printGroup.remove(mesh);
@@ -1993,6 +2004,43 @@ let selectionHelpers = new Map(); // mesh -> BoxHelper
 let dragState = null;   // { plane, grabbed: [{ mesh, offsetX, offsetY }] }
 let rotateState = null; // { plane, center, startAngle, items: [{ mesh, startPos, startRotZ }] }
 let resizeState = null; // { mesh, mode, originalGeometry, originalPosition, ... } — see startResize
+
+// Claims the single gesture slot for this pointer. Everything that moves or
+// edits the scene checks activeGesture, so while one kind of movement is in
+// progress (free drag, rotation, resize) the others simply cannot start:
+// other pointers are ignored, keyboard shortcuts and arrow nudges are
+// blocked, and the sidebar/view buttons stop receiving input. Pointer
+// capture keeps the gesture's events coming even if the pointer leaves the
+// canvas or the window, so it can't get stuck "half active".
+function beginGesture(type, event){
+  if (activeGesture) return false;
+  activeGesture = { type, pointerId: event.pointerId };
+  controls.enabled = false;
+  document.body.classList.add('gesture-active');
+  try { renderer.domElement.setPointerCapture(event.pointerId); } catch (_) { /* synthetic/unsupported pointer: fine */ }
+  return true;
+}
+
+function endGesture(){
+  if (!activeGesture) return;
+  // Clear the slot FIRST so a re-entrant call (e.g. a synchronous
+  // lostpointercapture fired by the release below) is a harmless no-op.
+  const { pointerId } = activeGesture;
+  activeGesture = null;
+  if (resizeState){
+    resizeState.originalGeometry.dispose();
+    if (resizeState.mesh.userData.isHole) updateHoleVisual(resizeState.mesh); // overlay traced the pre-resize geometry
+  }
+  dragState = null;
+  rotateState = null;
+  resizeState = null;
+  try { renderer.domElement.releasePointerCapture(pointerId); } catch (_) { /* already released */ }
+  document.body.classList.remove('gesture-active');
+  controls.enabled = true;
+  renderer.domElement.style.cursor = 'auto';
+  updateHud();
+  syncNumericFields();
+}
 let lastPointerEvent = null; // hover-cursor raycast is throttled to once per rendered frame, not once per raw event
 const raycaster = new THREE.Raycaster();
 const pointerNDC = new THREE.Vector2();
@@ -2053,7 +2101,7 @@ function syncNumericFields(){
   objRotationInput.value = (mesh.rotation.z * 180 / Math.PI).toFixed(1);
 }
 function applyNumericFields(){
-  if (selectedMeshes.size !== 1) return;
+  if (activeGesture || selectedMeshes.size !== 1) return;
   pushUndo();
   const mesh = firstOf(selectedMeshes);
   mesh.position.x = parseFloat(objPosXInput.value) || 0;
@@ -2344,7 +2392,7 @@ function updateGizmoForSelection(){
 }
 
 function nudgeSelected(dx, dy){
-  if (selectedMeshes.size === 0) return;
+  if (activeGesture || selectedMeshes.size === 0) return;
   pushUndo();
   const step = parseFloat(nudgeStepInput.value) || 1;
   for (const mesh of selectedMeshes){
@@ -2427,6 +2475,7 @@ function startResize(handle, mesh, event){
 
 renderer.domElement.addEventListener('pointerdown', (event) => {
   if (event.button !== 0) return; // left click / primary touch only
+  if (activeGesture){ event.preventDefault(); return; } // a gesture is already running: a second pointer must not start another
 
   if (rulerMode){ handleRulerClick(event); event.preventDefault(); return; }
 
@@ -2438,7 +2487,7 @@ renderer.domElement.addEventListener('pointerdown', (event) => {
     if (resizeHit){
       pushUndo();
       startResize(resizeHit.object, firstOf(selectedMeshes), event);
-      controls.enabled = false;
+      beginGesture('resize', event);
       renderer.domElement.style.cursor = resizeHit.object === resizeTop ? 'ns-resize' : 'nwse-resize';
       event.preventDefault();
       return;
@@ -2447,7 +2496,7 @@ renderer.domElement.addEventListener('pointerdown', (event) => {
     if (raycaster.intersectObject(rotationRing, false).length){
       pushUndo();
       startRotate(event);
-      controls.enabled = false;
+      beginGesture('rotate', event);
       renderer.domElement.style.cursor = 'grabbing';
       event.preventDefault();
       return;
@@ -2496,12 +2545,14 @@ renderer.domElement.addEventListener('pointerdown', (event) => {
       offsetY: mesh.position.y - hit.point.y
     }))
   };
-  controls.enabled = false;
+  beginGesture('drag', event);
   renderer.domElement.style.cursor = 'grabbing';
   event.preventDefault();
 });
 
 window.addEventListener('pointermove', (event) => {
+  // During a gesture only the pointer that started it counts.
+  if (activeGesture && event.pointerId !== activeGesture.pointerId) return;
   lastPointerEvent = event;
 
   if (resizeState){
@@ -2567,26 +2618,20 @@ window.addEventListener('pointermove', (event) => {
   }
 });
 
-window.addEventListener('pointerup', () => {
-  if (!dragState && !rotateState && !resizeState) return;
-  if (resizeState){
-    resizeState.originalGeometry.dispose();
-    if (resizeState.mesh.userData.isHole) updateHoleVisual(resizeState.mesh); // overlay traced the pre-resize geometry
-  }
-  dragState = null;
-  rotateState = null;
-  resizeState = null;
-  controls.enabled = true;
-  renderer.domElement.style.cursor = 'auto';
-  updateHud();
-  syncNumericFields();
-});
+function endGestureFor(event){
+  if (activeGesture && event.pointerId === activeGesture.pointerId) endGesture();
+}
+window.addEventListener('pointerup', endGestureFor);
+window.addEventListener('pointercancel', endGestureFor);
+renderer.domElement.addEventListener('lostpointercapture', endGestureFor);
+window.addEventListener('blur', endGesture); // e.g. alt-tab mid-drag: the pointerup would never arrive
 
 // Arrow keys nudge, Delete/Backspace removes, Ctrl/Cmd+D duplicates — but
 // never while the user is typing in the text field or any other form control.
 window.addEventListener('keydown', (event) => {
   const tag = document.activeElement && document.activeElement.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  if (activeGesture){ event.preventDefault(); return; } // no arrow nudges / undo / delete / duplicate mid-gesture
 
   const mod = event.ctrlKey || event.metaKey;
   if (mod && event.key.toLowerCase() === 'z' && !event.shiftKey){ undo(); event.preventDefault(); return; }
@@ -2762,7 +2807,7 @@ function animate(){
   // often the raw pointermove event fires (can exceed 60/s on some hardware).
   if (rulerMode){
     renderer.domElement.style.cursor = 'crosshair';
-  } else if (!dragState && !rotateState && !resizeState && lastPointerEvent){
+  } else if (!activeGesture && lastPointerEvent){
     raycaster.setFromCamera(toNDC(lastPointerEvent), camera);
     const visibleResizeHandles = resizeHandles.filter(h => h.visible);
     if (visibleResizeHandles.length && raycaster.intersectObjects(visibleResizeHandles, false).length){
