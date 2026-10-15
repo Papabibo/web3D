@@ -4,6 +4,8 @@ A browser-based 3D scene builder for creating printable STL designs from simple 
 
 This project is a single-page web app that lets you arrange images, text, and basic geometric forms on a virtual print bed, then export the combined result as an STL file for 3D printing.
 
+Test it now: https://papabibo.github.io/web3D/
+
 ## Features
 
 - Import SVG, PNG, and JPG assets
